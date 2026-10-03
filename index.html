@@ -94,7 +94,27 @@
     if (!p && location.hash.indexOf('#/') === 0) p = cleanPath(location.hash.slice(1));
     return p || '/';
   }
-  function target(base) { return base.replace(/\/+$/, '') + route(); }
+  // Shared cleaner login (?p=/c/): the cleaner types her phone once; the board posts her token here and we keep it in
+  // THIS origin's storage (first-party, survives tunnel changes) so the same shared link opens her page next time.
+  var CLEANER_KEY = 'limpiezas-token';
+  function isLoginRoute(r) { return /^\/c\/?(\?.*)?$/.test(r) && !/[?&]out=1/.test(r); }
+  function rememberedCleaner() {
+    try { var t = localStorage.getItem(CLEANER_KEY) || ''; return /^[A-Za-z0-9_-]{10,64}$/.test(t) ? t : ''; } catch (e) { return ''; }
+  }
+  function target(base) {
+    var r = route(), tk = isLoginRoute(r) ? rememberedCleaner() : '';
+    if (tk) r = '/c/' + tk + '?login=1';
+    else if (r === '/c') r = '/c/';
+    return base.replace(/\/+$/, '') + r;
+  }
+  window.addEventListener('message', function (ev) {
+    if (!current || !ev.data || typeof ev.data !== 'object') return;
+    try { if (ev.origin !== new URL(current).origin) return; } catch (e) { return; }
+    try {
+      if (ev.data.type === 'limpiezas-login' && /^[A-Za-z0-9_-]{10,64}$/.test(String(ev.data.token || ''))) localStorage.setItem(CLEANER_KEY, ev.data.token);
+      else if (ev.data.type === 'limpiezas-logout') localStorage.removeItem(CLEANER_KEY);
+    } catch (e) {}
+  });
 
   // Cleaner links (/c/...) get their own home-screen name + start URL.
   (function personalizeManifest() {
