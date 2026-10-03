@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Airbnb Ops</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#ffffff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Airbnb Ops">
+<link rel="manifest" id="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+  :root { --red:#e0314f; --ink:#1d1d1f; --muted:#6e6e73; --bg:#ffffff; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--ink);
+    font:16px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    overflow:hidden; -webkit-text-size-adjust:100%; }
+  #wrap { position:fixed; left:0; right:0; top:env(safe-area-inset-top, 0px);
+    bottom:env(safe-area-inset-bottom, 0px); }
+  #board { position:absolute; inset:0; width:100%; height:100%; border:0; display:block; background:var(--bg); }
+  #overlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+    background:var(--bg); z-index:10; padding:24px; text-align:center; transition:opacity .25s; }
+  #overlay.hidden { opacity:0; pointer-events:none; }
+  .card { max-width:340px; }
+  .logo { width:76px; height:76px; border-radius:18px; box-shadow:0 6px 20px rgba(224,49,79,.25); }
+  h1 { font-size:21px; margin:18px 0 6px; font-weight:650; }
+  p { margin:0 0 6px; color:var(--muted); font-size:15px; }
+  .spin { width:26px; height:26px; margin:18px auto 4px; border-radius:50%;
+    border:3px solid #f1c3cc; border-top-color:var(--red); animation:spin .9s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .btns { margin-top:18px; display:flex; flex-direction:column; gap:10px; }
+  .btn { display:block; padding:13px 16px; border-radius:12px; font-weight:600; font-size:16px;
+    text-decoration:none; border:0; cursor:pointer; }
+  .btn.primary { background:var(--red); color:#fff; }
+  .btn.ghost { background:#f2f2f4; color:var(--ink); }
+  .btn[hidden] { display:none; }
+  .small { font-size:12.5px; color:#9a9aa0; margin-top:14px; }
+  #toast { position:fixed; left:50%; bottom:calc(env(safe-area-inset-bottom, 0px) + 84px);
+    transform:translateX(-50%) translateY(20px); background:rgba(29,29,31,.92); color:#fff;
+    padding:9px 16px; border-radius:20px; font-size:14px; opacity:0; transition:all .3s; z-index:20; pointer-events:none; }
+  #toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div id="wrap"><iframe id="board" title="Airbnb Ops" allow="clipboard-write; geolocation" referrerpolicy="no-referrer"></iframe></div>
+
+<div id="overlay" role="status" aria-live="polite">
+  <div class="card">
+    <img class="logo" src="icon-192.png" alt="">
+    <h1 id="title">Abriendo… <span style="color:var(--muted);font-weight:500">/ Opening…</span></h1>
+    <p id="msg">Conectando con el tablero.<br>Connecting to the board.</p>
+    <div class="spin"></div>
+    <div class="btns">
+      <button class="btn primary" id="retry" hidden>Reintentar / Retry</button>
+      <a class="btn ghost" id="direct" target="_blank" rel="noopener" hidden>Abrir directo / Open directly</a>
+    </div>
+    <div class="small" id="status"></div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+  var OWNER = 'manuelbarrantes604-afk', REPO = 'airbnb-ops', BRANCH = 'main';
+  var SOURCES = {
+    pages: function () { return 'url.json?t=' + Date.now(); },
+    raw:   function () { return 'https://raw.githubusercontent.com/' + OWNER + '/' + REPO + '/' + BRANCH + '/url.json?t=' + Date.now(); },
+    api:   function () { return 'https://api.github.com/repos/' + OWNER + '/' + REPO + '/contents/url.json?ref=' + BRANCH + '&t=' + Date.now(); }
+  };
+  var LS_KEY = 'airbnb-ops-permalink-last';
+  var RECONNECT_MS = 15000, HEALTH_MS = 30000, CONFIG_MS = 120000, API_MIN_GAP_MS = 60000;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var frame = $('board'), overlay = $('overlay');
+  var current = null;          // base URL currently loaded in the iframe
+  var lastApi = 0, reconnectTimer = null, healthTimer = null, configTimer = null, failCount = 0;
+
+  // ---------- route (?p=/c/TOKEN or #/c/TOKEN) ----------
+  function cleanPath(p) {
+    if (!p || typeof p !== 'string') return null;
+    p = p.trim();
+    if (p.charAt(0) !== '/' || p.charAt(1) === '/' || p.charAt(1) === '\\' || /[\s<>"]/.test(p)) return null;
+    return p;
+  }
+  function route() {
+    var qs = new URLSearchParams(location.search);
+    var p = cleanPath(qs.get('p'));
+    if (!p && location.hash.indexOf('#/') === 0) p = cleanPath(location.hash.slice(1));
+    return p || '/';
+  }
+  function target(base) { return base.replace(/\/+$/, '') + route(); }
+
+  // Cleaner links (/c/...) get their own home-screen name + start URL.
+  (function personalizeManifest() {
+    var r = route();
+    if (r.indexOf('/c/') !== 0) return;
+    try {
+      var abs = function (u) { return new URL(u, location.href).href; };
+      var m = { name: 'Mis limpiezas', short_name: 'Limpiezas', start_url: location.href,
+        scope: abs('./'), display: 'standalone', background_color: '#ffffff', theme_color: '#ffffff',
+        icons: [{ src: abs('icon-192.png'), sizes: '192x192', type: 'image/png' },
+                { src: abs('icon-512.png'), sizes: '512x512', type: 'image/png' }] };
+      $('manifest').href = 'data:application/manifest+json,' + encodeURIComponent(JSON.stringify(m));
+      document.querySelector('meta[name="apple-mobile-web-app-title"]').content = 'Limpiezas';
+      document.title = 'Mis limpiezas';
+    } catch (e) {}
+  })();
+
+  // ---------- helpers ----------
+  function withTimeout(promise, ms) {
+    return new Promise(function (resolve, reject) {
+      var t = setTimeout(function () { reject(new Error('timeout')); }, ms);
+      promise.then(function (v) { clearTimeout(t); resolve(v); }, function (e) { clearTimeout(t); reject(e); });
+    });
+  }
+  function validUrl(u) { return typeof u === 'string' && /^https:\/\/[A-Za-z0-9.-]+(:\d+)?\/?$/.test(u.trim()); }
+  function fetchCfg(name) {
+    var opts = { cache: 'no-store' };
+    if (name === 'api') opts.headers = { 'Accept': 'application/vnd.github.raw+json' };
+    return withTimeout(fetch(SOURCES[name](), opts).then(function (r) {
+      if (!r.ok) throw new Error(name + ' ' + r.status);
+      return r.json();
+    }).then(function (j) {
+      if (!j || !validUrl(j.url)) throw new Error(name + ' bad json');
+      return { url: j.url.trim().replace(/\/+$/, ''), updated: Date.parse(j.updated) || 0, src: name };
+    }), 7000);
+  }
+  // Ask every source, keep the freshest "updated". API is rate limited (60/h), so use it sparingly.
+  function getConfig(useApi) {
+    var names = ['pages', 'raw'];
+    if (useApi && Date.now() - lastApi > API_MIN_GAP_MS) { names.push('api'); lastApi = Date.now(); }
+    return Promise.all(names.map(function (n) { return fetchCfg(n).catch(function () { return null; }); }))
+      .then(function (list) {
+        var best = null;
+        try { var c = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); if (c && validUrl(c.url)) best = c; } catch (e) {}
+        list.forEach(function (c) { if (c && (!best || c.updated > best.updated)) best = c; });
+        if (best) { try { localStorage.setItem(LS_KEY, JSON.stringify({ url: best.url, updated: best.updated })); } catch (e) {} }
+        return best;
+      });
+  }
+  // A dead quick-tunnel hostname stops resolving, so a no-cors fetch rejects. Any HTTP answer = alive.
+  function probe(base) {
+    return withTimeout(fetch(base.replace(/\/+$/, '') + '/__permalink_ping__?t=' + Date.now(),
+      { mode: 'no-cors', cache: 'no-store' }), 9000).then(function () { return true; }, function () { return false; });
+  }
+
+  // ---------- UI states ----------
+  function showOverlay(kind, base) {
+    overlay.classList.remove('hidden');
+    if (kind === 'reconnect') {
+      $('title').innerHTML = 'Reconectando… <span style="color:var(--muted);font-weight:500">/ Reconnecting…</span>';
+      $('msg').innerHTML = 'El tablero se está reiniciando. Esto vuelve solo en un momento.<br>The board is restarting — this recovers automatically.';
+      $('retry').hidden = false;
+    }
+    if (base) { $('direct').href = target(base); $('direct').hidden = false; }
+  }
+  function hideOverlay() { overlay.classList.add('hidden'); }
+  function setStatus(t) { $('status').textContent = t || ''; }
+  function toast(t) { var el = $('toast'); el.textContent = t; el.classList.add('show'); setTimeout(function () { el.classList.remove('show'); }, 2600); }
+
+  function load(base) {
+    var wasRecovering = current !== null;
+    current = base;
+    failCount = 0;
+    if (new URLSearchParams(location.search).get('direct') === '1') { location.replace(target(base)); return; }
+    frame.src = target(base);
+    $('direct').href = target(base);
+    hideOverlay();
+    if (wasRecovering) toast('Reconectado ✓ / Reconnected');
+    stopReconnect();
+    startHealth();
+  }
+
+  // ---------- loops ----------
+  function stopReconnect() { if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; } }
+  function startHealth() {
+    if (healthTimer) clearInterval(healthTimer);
+    if (configTimer) clearInterval(configTimer);
+    healthTimer = setInterval(healthCheck, HEALTH_MS);
+    configTimer = setInterval(configCheck, CONFIG_MS);
+  }
+  function stopHealth() { clearInterval(healthTimer); clearInterval(configTimer); healthTimer = configTimer = null; }
+
+  function reconnectLoop() {
+    stopReconnect();
+    stopHealth();
+    showOverlay('reconnect', current);
+    setStatus('Buscando el enlace nuevo… / Looking for the new link…');
+    getConfig(true).then(function (cfg) {
+      if (!cfg) { setStatus('Sin conexión a GitHub. Reintento en 15 s. / Retrying in 15 s.'); return false; }
+      $('direct').href = target(cfg.url); $('direct').hidden = false;
+      return probe(cfg.url).then(function (ok) {
+        if (ok) { load(cfg.url); return true; }
+        setStatus('Todavía no responde. Reintento en 15 s. / Not up yet, retrying in 15 s.');
+        return false;
+      });
+    }).then(function (done) {
+      if (!done) reconnectTimer = setTimeout(reconnectLoop, RECONNECT_MS);
+    });
+  }
+  function healthCheck() {
+    if (document.hidden || !current) return;
+    probe(current).then(function (ok) {
+      if (ok) { failCount = 0; return; }
+      if (++failCount >= 2) reconnectLoop();
+      else configCheck();
+    });
+  }
+  function configCheck(useApi) {
+    if (document.hidden || !current) return;
+    getConfig(!!useApi).then(function (cfg) {
+      if (cfg && cfg.url !== current) {
+        probe(cfg.url).then(function (ok) { if (ok) load(cfg.url); });
+      }
+    });
+  }
+
+  $('retry').onclick = function () { reconnectLoop(); };
+  window.addEventListener('hashchange', function () { if (current) frame.src = target(current); });
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden || !current || reconnectTimer) return;
+    probe(current).then(function (ok) { if (!ok) reconnectLoop(); else configCheck(true); });
+  });
+
+  // ---------- boot ----------
+  getConfig(true).then(function (cfg) {
+    if (!cfg) return reconnectLoop();
+    $('direct').href = target(cfg.url);
+    probe(cfg.url).then(function (ok) {
+      if (ok) load(cfg.url);
+      else { current = cfg.url; reconnectLoop(); }
+    });
+  });
+})();
+</script>
+</body>
+</html>
