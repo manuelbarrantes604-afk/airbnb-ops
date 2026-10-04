@@ -1,0 +1,17 @@
+{
+  "id": "/airbnb-ops/limpiezas/",
+  "name": "Limpiezas Airbnb",
+  "short_name": "Limpiezas",
+  "description": "Calendario de limpiezas con Manuel: fechas disponibles, tus limpiezas y pagos.",
+  "lang": "es",
+  "start_url": "/airbnb-ops/limpiezas/",
+  "scope": "/airbnb-ops/limpiezas/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0f9a86",
+  "icons": [
+    { "src": "/airbnb-ops/limpiezas/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/airbnb-ops/limpiezas/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/airbnb-ops/limpiezas/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

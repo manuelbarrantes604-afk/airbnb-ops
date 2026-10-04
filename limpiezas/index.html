@@ -3,31 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Airbnb Ops</title>
+<title>Limpiezas</title>
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
-<meta name="theme-color" content="#ffffff">
+<meta name="theme-color" content="#0f9a86">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Airbnb Ops">
-<script>
-// 2026-10-04: cleaner links (?p=/c/, ?p=/c/TOKEN, #/c/...) belong to the separate "Limpiezas" home-screen app at ./limpiezas/
-// (own manifest, scope, icon). Redirect before anything else so a cleaner never saves the Ops board.
-(function () {
-  var qs = new URLSearchParams(location.search), p = qs.get('p') || '';
-  if (!p && location.hash.indexOf('#/c') === 0) p = location.hash.slice(1);
-  if (!/^\/c(\/|$|\?)/.test(p)) return;
-  var m = p.match(/^\/c\/([A-Za-z0-9_-]{10,64})/), dest = 'limpiezas/';
-  if (m) dest += '?t=' + m[1]; else if (/[?&]out=1/.test(p)) dest += '?out=1';
-  location.replace(dest);
-})();
-</script>
-<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="Limpiezas">
+<meta name="application-name" content="Limpiezas">
+<link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
-  :root { --red:#e0314f; --ink:#1d1d1f; --muted:#6e6e73; --bg:#ffffff; }
+  :root { --red:#0f9a86; --ink:#1d1d1f; --muted:#6e6e73; --bg:#ffffff; }
   * { box-sizing:border-box; }
   html, body { margin:0; height:100%; background:var(--bg); color:var(--ink);
     font:16px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
@@ -39,11 +28,11 @@
     background:var(--bg); z-index:10; padding:24px; text-align:center; transition:opacity .25s; }
   #overlay.hidden { opacity:0; pointer-events:none; }
   .card { max-width:340px; }
-  .logo { width:76px; height:76px; border-radius:18px; box-shadow:0 6px 20px rgba(224,49,79,.25); }
+  .logo { width:76px; height:76px; border-radius:18px; box-shadow:0 6px 20px rgba(15,154,134,.28); }
   h1 { font-size:21px; margin:18px 0 6px; font-weight:650; }
   p { margin:0 0 6px; color:var(--muted); font-size:15px; }
   .spin { width:26px; height:26px; margin:18px auto 4px; border-radius:50%;
-    border:3px solid #f1c3cc; border-top-color:var(--red); animation:spin .9s linear infinite; }
+    border:3px solid #bfe8e0; border-top-color:var(--red); animation:spin .9s linear infinite; }
   @keyframes spin { to { transform:rotate(360deg); } }
   .btns { margin-top:18px; display:flex; flex-direction:column; gap:10px; }
   .btn { display:block; padding:13px 16px; border-radius:12px; font-weight:600; font-size:16px;
@@ -59,13 +48,13 @@
 </style>
 </head>
 <body>
-<div id="wrap"><iframe id="board" title="Airbnb Ops" allow="clipboard-write; geolocation" referrerpolicy="no-referrer"></iframe></div>
+<div id="wrap"><iframe id="board" title="Limpiezas" allow="clipboard-write; geolocation" referrerpolicy="no-referrer"></iframe></div>
 
 <div id="overlay" role="status" aria-live="polite">
   <div class="card">
     <img class="logo" src="icon-192.png" alt="">
     <h1 id="title">Abriendo… <span style="color:var(--muted);font-weight:500">/ Opening…</span></h1>
-    <p id="msg">Conectando con el tablero.<br>Connecting to the board.</p>
+    <p id="msg">Abriendo tus limpiezas.<br>Opening your cleaning calendar.</p>
     <div class="spin"></div>
     <div class="btns">
       <button class="btn primary" id="retry" hidden>Reintentar / Retry</button>
@@ -81,11 +70,11 @@
   'use strict';
   var OWNER = 'manuelbarrantes604-afk', REPO = 'airbnb-ops', BRANCH = 'main';
   var SOURCES = {
-    pages: function () { return 'url.json?t=' + Date.now(); },
+    pages: function () { return '../url.json?t=' + Date.now(); },
     raw:   function () { return 'https://raw.githubusercontent.com/' + OWNER + '/' + REPO + '/' + BRANCH + '/url.json?t=' + Date.now(); },
     api:   function () { return 'https://api.github.com/repos/' + OWNER + '/' + REPO + '/contents/url.json?ref=' + BRANCH + '&t=' + Date.now(); }
   };
-  var LS_KEY = 'airbnb-ops-permalink-last';
+  var LS_KEY = 'airbnb-ops-permalink-last';   // shared with the Ops launcher (same origin) on purpose: same tunnel URL
   var RECONNECT_MS = 15000, HEALTH_MS = 30000, CONFIG_MS = 120000, API_MIN_GAP_MS = 60000;
 
   var $ = function (id) { return document.getElementById(id); };
@@ -93,40 +82,42 @@
   var current = null;          // base URL currently loaded in the iframe
   var lastApi = 0, reconnectTimer = null, healthTimer = null, configTimer = null, failCount = 0;
 
-  // ---------- route (?p=/c/TOKEN or #/c/TOKEN) ----------
-  function cleanPath(p) {
-    if (!p || typeof p !== 'string') return null;
-    p = p.trim();
-    if (p.charAt(0) !== '/' || p.charAt(1) === '/' || p.charAt(1) === '\\' || /[\s<>"]/.test(p)) return null;
-    return p;
-  }
+  // ---------- route: this app ONLY shows the cleaner portal ----------
+  // /limpiezas/            → /c/ (shared phone login; remembers her) or her own page if this device already knows her
+  // /limpiezas/?t=TOKEN    → /c/TOKEN (personal link; old ?p=/c/TOKEN links on the Ops launcher redirect here)
+  // Home-screen app: manifest.json start_url = scope = this folder, so the saved icon always opens HERE (never the Ops board).
+  var CLEANER_KEY = 'limpiezas-token';
+  var TOKEN_RE = /^[A-Za-z0-9_-]{10,64}$/;
   function route() {
     var qs = new URLSearchParams(location.search);
-    var p = cleanPath(qs.get('p'));
-    if (!p && location.hash.indexOf('#/') === 0) p = cleanPath(location.hash.slice(1));
-    return p || '/';
+    var t = qs.get('t') || '';
+    if (!t) { var p = qs.get('p') || ''; var m = p.match(/^\/c\/([A-Za-z0-9_-]{10,64})/); if (m) t = m[1]; }
+    if (TOKEN_RE.test(t)) return '/c/' + t;
+    if (qs.get('out') === '1') return '/c/?out=1';
+    return '/c/';
   }
-  // Shared cleaner login (?p=/c/): the cleaner types her phone once; the board posts her token here and we keep it in
-  // THIS origin's storage (first-party, survives tunnel changes) so the same shared link opens her page next time.
-  var CLEANER_KEY = 'limpiezas-token';
-  function isLoginRoute(r) { return /^\/c\/?(\?.*)?$/.test(r) && !/[?&]out=1/.test(r); }
+  function isLoginRoute(r) { return r === '/c/'; }
   function rememberedCleaner() {
-    try { var t = localStorage.getItem(CLEANER_KEY) || ''; return /^[A-Za-z0-9_-]{10,64}$/.test(t) ? t : ''; } catch (e) { return ''; }
+    try { var t = localStorage.getItem(CLEANER_KEY) || ''; return TOKEN_RE.test(t) ? t : ''; } catch (e) { return ''; }
   }
   function target(base) {
     var r = route(), tk = isLoginRoute(r) ? rememberedCleaner() : '';
     if (tk) r = '/c/' + tk + '?login=1';
-    else if (r === '/c') r = '/c/';
     return base.replace(/\/+$/, '') + r;
   }
+  // The portal (iframe, tunnel origin) posts her token after she signs in with her phone. We keep it in THIS origin's
+  // storage: first-party for the launcher, survives tunnel changes, and works in an iOS home-screen app where the
+  // iframe's own cookies/storage are third-party (blocked/partitioned by Safari ITP).
   window.addEventListener('message', function (ev) {
     if (!current || !ev.data || typeof ev.data !== 'object') return;
     try { if (ev.origin !== new URL(current).origin) return; } catch (e) { return; }
     try {
-      if (ev.data.type === 'limpiezas-login' && /^[A-Za-z0-9_-]{10,64}$/.test(String(ev.data.token || ''))) localStorage.setItem(CLEANER_KEY, ev.data.token);
+      if (ev.data.type === 'limpiezas-login' && TOKEN_RE.test(String(ev.data.token || ''))) localStorage.setItem(CLEANER_KEY, ev.data.token);
       else if (ev.data.type === 'limpiezas-logout') localStorage.removeItem(CLEANER_KEY);
     } catch (e) {}
   });
+  // Ask Safari/Chrome to keep this origin's storage (best effort; installed iOS web apps are exempt from the 7-day cap).
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
 
   // ---------- helpers ----------
   function withTimeout(promise, ms) {
@@ -171,7 +162,7 @@
     overlay.classList.remove('hidden');
     if (kind === 'reconnect') {
       $('title').innerHTML = 'Reconectando… <span style="color:var(--muted);font-weight:500">/ Reconnecting…</span>';
-      $('msg').innerHTML = 'El tablero se está reiniciando. Esto vuelve solo en un momento.<br>The board is restarting — this recovers automatically.';
+      $('msg').innerHTML = 'El calendario se está reiniciando. Esto vuelve solo en un momento.<br>The calendar is restarting — this recovers automatically.';
       $('retry').hidden = false;
     }
     if (base) { $('direct').href = target(base); $('direct').hidden = false; }
@@ -238,8 +229,7 @@
   }
 
   $('retry').onclick = function () { reconnectLoop(); };
-  window.addEventListener('hashchange', function () { if (current) frame.src = target(current); });
-  document.addEventListener('visibilitychange', function () {
+    document.addEventListener('visibilitychange', function () {
     if (document.hidden || !current || reconnectTimer) return;
     probe(current).then(function (ok) { if (!ok) reconnectLoop(); else configCheck(true); });
   });
