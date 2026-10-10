@@ -21,7 +21,7 @@
   html, body { margin:0; height:100%; background:var(--bg); color:var(--ink);
     font:16px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
     overflow:hidden; -webkit-text-size-adjust:100%; }
-  #wrap { position:fixed; left:0; right:0; top:env(safe-area-inset-top, 0px);
+  #wrapX { position:fixed; left:0; right:0; top:env(safe-area-inset-top, 0px);
     bottom:env(safe-area-inset-bottom, 0px); }
   #board { position:absolute; inset:0; width:100%; height:100%; border:0; display:block; background:var(--bg); }
   #overlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
@@ -48,201 +48,92 @@
 </style>
 </head>
 <body>
-<div id="wrap"><iframe id="board" title="Limpiezas" allow="clipboard-write; geolocation" referrerpolicy="no-referrer"></iframe></div>
-
 <div id="overlay" role="status" aria-live="polite">
   <div class="card">
     <img class="logo" src="icon-192.png" alt="">
     <h1 id="title">Abriendo… <span style="color:var(--muted);font-weight:500">/ Opening…</span></h1>
     <p id="msg">Abriendo tus limpiezas.<br>Opening your cleaning calendar.</p>
-    <div class="spin"></div>
+    <div class="spin" id="spin"></div>
     <div class="btns">
       <button class="btn primary" id="retry" hidden>Reintentar / Retry</button>
-      <a class="btn ghost" id="direct" target="_blank" rel="noopener" hidden>Abrir directo / Open directly</a>
+      <a class="btn ghost" id="direct" hidden>Abrir directo / Open directly</a>
     </div>
     <div class="small" id="status"></div>
   </div>
 </div>
-<div id="toast"></div>
-
 <script>
 (function () {
   'use strict';
+  // 2026-10-10: NO iframe. Resolve the live board URL from url.json, then navigate the whole page there
+  // (top-level, same-tab). Cross-origin iframes failed on phones (ITP / blocked tunnel hosts → endless spinner).
   var OWNER = 'manuelbarrantes604-afk', REPO = 'airbnb-ops', BRANCH = 'main';
-  var SOURCES = {
-    pages: function () { return '../url.json?t=' + Date.now(); },
-    raw:   function () { return 'https://raw.githubusercontent.com/' + OWNER + '/' + REPO + '/' + BRANCH + '/url.json?t=' + Date.now(); },
-    api:   function () { return 'https://api.github.com/repos/' + OWNER + '/' + REPO + '/contents/url.json?ref=' + BRANCH + '&t=' + Date.now(); }
-  };
-  var LS_KEY = 'airbnb-ops-permalink-last';   // shared with the Ops launcher (same origin) on purpose: same tunnel URL
-  var RECONNECT_MS = 15000, HEALTH_MS = 30000, CONFIG_MS = 120000, API_MIN_GAP_MS = 60000;
-
-  var $ = function (id) { return document.getElementById(id); };
-  var frame = $('board'), overlay = $('overlay');
-  var current = null;          // base URL currently loaded in the iframe
-  var lastApi = 0, reconnectTimer = null, healthTimer = null, configTimer = null, failCount = 0;
-
-  // ---------- route: this app ONLY shows the cleaner portal ----------
-  // /limpiezas/            → /c/ (shared phone login; remembers her) or her own page if this device already knows her
-  // /limpiezas/?t=TOKEN    → /c/TOKEN (personal link; old ?p=/c/TOKEN links on the Ops launcher redirect here)
-  // Home-screen app: manifest.json start_url = scope = this folder, so the saved icon always opens HERE (never the Ops board).
-  var CLEANER_KEY = 'limpiezas-token';
+  var LS_KEY = 'airbnb-ops-permalink-last', CLEANER_KEY = 'limpiezas-token';
   var TOKEN_RE = /^[A-Za-z0-9_-]{10,64}$/;
+  var FALLBACK = 'https://airbnb-ops.tail3ff34f.ts.net';   // backup only (Tailscale Funnel)
+  var $ = function (id) { return document.getElementById(id); };
+
+  function lsGet(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+  var qs = new URLSearchParams(location.search);
+  var tok = qs.get('t') || '';
+  if (!tok) { var m = (qs.get('p') || '').match(/^\/c\/([A-Za-z0-9_-]{10,64})/); if (m) tok = m[1]; }
+  if (TOKEN_RE.test(tok)) lsSet(CLEANER_KEY, tok);          // personal link → remember this device
+  if (qs.get('out') === '1') { try { localStorage.removeItem(CLEANER_KEY); } catch (e) {} }
+
   function route() {
-    var qs = new URLSearchParams(location.search);
-    var t = qs.get('t') || '';
-    if (!t) { var p = qs.get('p') || ''; var m = p.match(/^\/c\/([A-Za-z0-9_-]{10,64})/); if (m) t = m[1]; }
-    if (TOKEN_RE.test(t)) return '/c/' + t;
+    if (TOKEN_RE.test(tok)) return '/c/' + tok;
     if (qs.get('out') === '1') return '/c/?out=1';
+    var r = lsGet(CLEANER_KEY);
+    if (TOKEN_RE.test(r)) return '/c/' + r + '?login=1';
     return '/c/';
   }
-  function isLoginRoute(r) { return r === '/c/'; }
-  function rememberedCleaner() {
-    try { var t = localStorage.getItem(CLEANER_KEY) || ''; return TOKEN_RE.test(t) ? t : ''; } catch (e) { return ''; }
-  }
-  function target(base) {
-    var r = route(), tk = isLoginRoute(r) ? rememberedCleaner() : '';
-    if (tk) r = '/c/' + tk + '?login=1';
-    return base.replace(/\/+$/, '') + r;
-  }
-  // The portal (iframe, tunnel origin) posts her token after she signs in with her phone. We keep it in THIS origin's
-  // storage: first-party for the launcher, survives tunnel changes, and works in an iOS home-screen app where the
-  // iframe's own cookies/storage are third-party (blocked/partitioned by Safari ITP).
-  window.addEventListener('message', function (ev) {
-    if (!current || !ev.data || typeof ev.data !== 'object') return;
-    try { if (ev.origin !== new URL(current).origin) return; } catch (e) { return; }
-    try {
-      if (ev.data.type === 'limpiezas-login' && TOKEN_RE.test(String(ev.data.token || ''))) localStorage.setItem(CLEANER_KEY, ev.data.token);
-      else if (ev.data.type === 'limpiezas-logout') localStorage.removeItem(CLEANER_KEY);
-    } catch (e) {}
-  });
-  // Ask Safari/Chrome to keep this origin's storage (best effort; installed iOS web apps are exempt from the 7-day cap).
-  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
-
-  // ---------- helpers ----------
-  function withTimeout(promise, ms) {
-    return new Promise(function (resolve, reject) {
-      var t = setTimeout(function () { reject(new Error('timeout')); }, ms);
-      promise.then(function (v) { clearTimeout(t); resolve(v); }, function (e) { clearTimeout(t); reject(e); });
-    });
-  }
+  function target(base) { return base.replace(/\/+$/, '') + route(); }
   function validUrl(u) { return typeof u === 'string' && /^https:\/\/[A-Za-z0-9.-]+(:\d+)?\/?$/.test(u.trim()); }
-  function fetchCfg(name) {
-    var opts = { cache: 'no-store' };
-    if (name === 'api') opts.headers = { 'Accept': 'application/vnd.github.raw+json' };
-    return withTimeout(fetch(SOURCES[name](), opts).then(function (r) {
-      if (!r.ok) throw new Error(name + ' ' + r.status);
-      return r.json();
-    }).then(function (j) {
-      if (!j || !validUrl(j.url)) throw new Error(name + ' bad json');
-      return { url: j.url.trim().replace(/\/+$/, ''), updated: Date.parse(j.updated) || 0, src: name };
-    }), 7000);
-  }
-  // Ask every source, keep the freshest "updated". API is rate limited (60/h), so use it sparingly.
-  function getConfig(useApi) {
-    var names = ['pages', 'raw'];
-    if (useApi && Date.now() - lastApi > API_MIN_GAP_MS) { names.push('api'); lastApi = Date.now(); }
-    return Promise.all(names.map(function (n) { return fetchCfg(n).catch(function () { return null; }); }))
-      .then(function (list) {
-        var best = null;
-        try { var c = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); if (c && validUrl(c.url)) best = c; } catch (e) {}
-        list.forEach(function (c) { if (c && (!best || c.updated > best.updated)) best = c; });
-        if (best) { try { localStorage.setItem(LS_KEY, JSON.stringify({ url: best.url, updated: best.updated })); } catch (e) {} }
-        return best;
-      });
-  }
-  // A dead quick-tunnel hostname stops resolving, so a no-cors fetch rejects. Any HTTP answer = alive.
-  function probe(base) {
-    return withTimeout(fetch(base.replace(/\/+$/, '') + '/__permalink_ping__?t=' + Date.now(),
-      { mode: 'no-cors', cache: 'no-store' }), 9000).then(function () { return true; }, function () { return false; });
-  }
 
-  // ---------- UI states ----------
-  function showOverlay(kind, base) {
-    overlay.classList.remove('hidden');
-    if (kind === 'reconnect') {
-      $('title').innerHTML = 'Reconectando… <span style="color:var(--muted);font-weight:500">/ Reconnecting…</span>';
-      $('msg').innerHTML = 'El calendario se está reiniciando. Esto vuelve solo en un momento.<br>The calendar is restarting — this recovers automatically.';
-      $('retry').hidden = false;
-    }
-    if (base) { $('direct').href = target(base); $('direct').hidden = false; }
-  }
-  function hideOverlay() { overlay.classList.add('hidden'); }
-  function setStatus(t) { $('status').textContent = t || ''; }
-  function toast(t) { var el = $('toast'); el.textContent = t; el.classList.add('show'); setTimeout(function () { el.classList.remove('show'); }, 2600); }
-
-  function load(base) {
-    var wasRecovering = current !== null;
-    current = base;
-    failCount = 0;
-    if (new URLSearchParams(location.search).get('direct') === '1') { location.replace(target(base)); return; }
-    frame.src = target(base);
-    $('direct').href = target(base);
-    hideOverlay();
-    if (wasRecovering) toast('Reconectado ✓ / Reconnected');
-    stopReconnect();
-    startHealth();
-  }
-
-  // ---------- loops ----------
-  function stopReconnect() { if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; } }
-  function startHealth() {
-    if (healthTimer) clearInterval(healthTimer);
-    if (configTimer) clearInterval(configTimer);
-    healthTimer = setInterval(healthCheck, HEALTH_MS);
-    configTimer = setInterval(configCheck, CONFIG_MS);
-  }
-  function stopHealth() { clearInterval(healthTimer); clearInterval(configTimer); healthTimer = configTimer = null; }
-
-  function reconnectLoop() {
-    stopReconnect();
-    stopHealth();
-    showOverlay('reconnect', current);
-    setStatus('Buscando el enlace nuevo… / Looking for the new link…');
-    getConfig(true).then(function (cfg) {
-      if (!cfg) { setStatus('Sin conexión a GitHub. Reintento en 15 s. / Retrying in 15 s.'); return false; }
-      $('direct').href = target(cfg.url); $('direct').hidden = false;
-      return probe(cfg.url).then(function (ok) {
-        if (ok) { load(cfg.url); return true; }
-        setStatus('Todavía no responde. Reintento en 15 s. / Not up yet, retrying in 15 s.');
-        return false;
-      });
-    }).then(function (done) {
-      if (!done) reconnectTimer = setTimeout(reconnectLoop, RECONNECT_MS);
-    });
-  }
-  function healthCheck() {
-    if (document.hidden || !current) return;
-    probe(current).then(function (ok) {
-      if (ok) { failCount = 0; return; }
-      if (++failCount >= 2) reconnectLoop();
-      else configCheck();
-    });
-  }
-  function configCheck(useApi) {
-    if (document.hidden || !current) return;
-    getConfig(!!useApi).then(function (cfg) {
-      if (cfg && cfg.url !== current) {
-        probe(cfg.url).then(function (ok) { if (ok) load(cfg.url); });
-      }
+  function fetchCfg(src) {
+    return new Promise(function (resolve) {
+      var done = false, t = setTimeout(function () { if (!done) { done = true; resolve(null); } }, 6000);
+      fetch(src + (src.indexOf('?') < 0 ? '?' : '&') + 't=' + Date.now(), { cache: 'no-store' })
+        .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+        .then(function (j) {
+          if (done) return; done = true; clearTimeout(t);
+          resolve(j && validUrl(j.url) ? { url: j.url.trim().replace(/\/+$/, ''), updated: Date.parse(j.updated) || 0 } : null);
+        })
+        .catch(function () { if (!done) { done = true; clearTimeout(t); resolve(null); } });
     });
   }
 
-  $('retry').onclick = function () { reconnectLoop(); };
-    document.addEventListener('visibilitychange', function () {
-    if (document.hidden || !current || reconnectTimer) return;
-    probe(current).then(function (ok) { if (!ok) reconnectLoop(); else configCheck(true); });
-  });
+  function fail() {
+    $('spin').style.display = 'none';
+    $('title').innerHTML = 'No se pudo abrir <span style="color:var(--muted);font-weight:500">/ Could not open</span>';
+    $('msg').innerHTML = 'Revisa tu internet y toca Reintentar.<br>Check your connection and tap Retry.';
+    $('retry').hidden = false;
+    var last = null; try { last = JSON.parse(lsGet(LS_KEY) || 'null'); } catch (e) {}
+    $('direct').href = target(last && validUrl(last.url) ? last.url : FALLBACK);
+    $('direct').hidden = false;
+  }
 
-  // ---------- boot ----------
-  getConfig(true).then(function (cfg) {
-    if (!cfg) return reconnectLoop();
-    $('direct').href = target(cfg.url);
-    probe(cfg.url).then(function (ok) {
-      if (ok) load(cfg.url);
-      else { current = cfg.url; reconnectLoop(); }
-    });
-  });
+  function go() {
+    $('retry').hidden = true; $('direct').hidden = true; $('spin').style.display = '';
+    $('status').textContent = '';
+    Promise.all([
+      fetchCfg('../url.json'),
+      fetchCfg('https://raw.githubusercontent.com/' + OWNER + '/' + REPO + '/' + BRANCH + '/url.json')
+    ]).then(function (list) {
+      var best = null;
+      list.forEach(function (c) { if (c && (!best || c.updated > best.updated)) best = c; });
+      if (!best) return fail();
+      lsSet(LS_KEY, JSON.stringify(best));
+      var dest = target(best.url);
+      $('direct').href = dest;
+      location.replace(dest);
+      // If the browser hasn't left within 8 s, offer manual buttons instead of spinning forever.
+      setTimeout(function () { $('status').textContent = 'Si no abre, toca "Abrir directo". / If it does not open, tap Open directly.'; $('direct').hidden = false; $('retry').hidden = false; }, 8000);
+    }, fail);
+  }
+  $('retry').onclick = go;
+  go();
 })();
 </script>
 </body>
