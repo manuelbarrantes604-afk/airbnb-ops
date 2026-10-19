@@ -1602,6 +1602,9 @@
   // Recipients selectable when texting: the cleaners + Manuel himself as a test recipient.
   const TEST_RCPT = CLEANERS_BASE.test_recipient || { name: 'Manuel (prueba)', phone: '501-380-5656', lang: 'es', test: true };
   function isTestRcpt(c) { return !!c && String(c.phone).replace(/\D/g, '') === String(TEST_RCPT.phone).replace(/\D/g, ''); }
+  // 2026-10-19 dispatch: first line = Mariana + Ivania; everyone else is a manual-only backup
+  const FIRST_LINE_DIGITS = new Set(['4793406238', '4793123259']);
+  function isBackupRcpt(c) { const d = String((c && c.phone) || '').replace(/\D/g, ''); return !!d && !isTestRcpt(c) && !FIRST_LINE_DIGITS.has(d); }
   function pickRecipients() { return allCleaners().filter(c => !isTestRcpt(c)).concat([TEST_RCPT]); }
   function isDismissed(id) {
     return dismissed.has(String(id));
@@ -2056,12 +2059,13 @@
     pendingSmsJobs = jobs;
     pendingSmsText = buildCleanerSMS(jobs);
     const rcpts = pickRecipients();
-    // default: every cleaner checked, Manuel (prueba) unchecked
-    const chosen = new Set(rcpts.filter(c => !isTestRcpt(c)).map(c => c.phone));
+    // default: first-line cleaners checked (Mariana, Ivania); backups (Marvin, Sayra) + Manuel (prueba) unchecked —
+    // 2026-10-19: backups only get a text when Manuel ticks them by hand
+    const chosen = new Set(rcpts.filter(c => !isTestRcpt(c) && !isBackupRcpt(c)).map(c => c.phone));
     const boxes = rcpts.map(c =>
       '<label class="' + (chosen.has(c.phone) ? 'on' : '') + (isTestRcpt(c) ? ' test' : '') + '">' +
         '<input type="checkbox" data-rcpt="' + escapeHtml(c.phone) + '"' + (chosen.has(c.phone) ? ' checked' : '') + '>' +
-        '<span class="nm">' + escapeHtml(isTestRcpt(c) ? c.name : cleanerFirst(c)) + '</span>' +
+        '<span class="nm">' + escapeHtml(isTestRcpt(c) ? c.name : cleanerFirst(c) + (isBackupRcpt(c) ? ' (backup)' : '')) + '</span>' +
         '<span class="ph">' + escapeHtml(c.phone) + '</span></label>'
     ).join('');
     smsBody.innerHTML =
@@ -2308,10 +2312,19 @@
           '<div class="tap-btns"><button class="btn secondary" type="button" data-decl-act="assign">Assign…</button><button class="btn secondary" type="button" data-decl-act="send-dates">Open Send dates</button>' +
           '<button class="btn secondary" type="button" data-decl-act="dismiss">Dismiss</button></div>';
       } else {
-        btns = '<div class="tap-btns"><button class="btn secondary" type="button" data-decl-act="assign">Assign…</button><button class="btn secondary" type="button" data-decl-act="dismiss">Dismiss</button></div>';
+        // 2026-10-19: backups (Marvin, Sayra) are never texted automatically — these buttons are Manuel's manual path
+        const bk = (a.backup_phones || []).map(ph => {
+          const c = cleanerByDigits(ph); if (!c) return '';
+          const first = cleanerFirst(c);
+          const asked = completedActions.some(e => e.id === askedId(a.job_code, c));
+          return '<button class="btn secondary" type="button" data-decl-act="text" data-phone="' + escapeHtml(ph) + '"' + (asked ? ' disabled' : '') + '>' +
+            (asked ? 'Asked ' + escapeHtml(first) + ' ✓' : 'Text ' + escapeHtml(first) + ' (backup)') + '</button>';
+        }).join('');
+        btns = (bk ? '<div class="decline-btns">' + bk + '</div>' : '') +
+          '<div class="tap-btns"><button class="btn secondary" type="button" data-decl-act="assign">Assign…</button><button class="btn secondary" type="button" data-decl-act="dismiss">Dismiss</button></div>';
       }
       return '<div class="tap-card urgent decline-card" data-decline-id="' + escapeHtml(a.id) + '">' +
-        '<div class="kicker">' + (a.all_declined ? 'Everyone said no · no cleaner' : (a.cancel ? 'Cleaner canceled · needs a cleaner' : 'Cleaner said no · needs a cleaner')) + '</div>' +
+        '<div class="kicker">' + (a.all_declined ? (a.no_answer ? 'Mariana/Ivania didn\'t take it · no cleaner' : 'Mariana/Ivania said no · no cleaner') : (a.cancel ? 'Cleaner canceled · needs a cleaner' : 'Cleaner said no · needs a cleaner')) + '</div>' +
         '<div class="q">' + escapeHtml(a.title || '') + '</div>' + quotes + btns +
         '<div class="reply-status" hidden></div></div>';
     }).join('');
