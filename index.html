@@ -1,0 +1,9 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
+<title>Airbnb Ops</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>body{font:16px -apple-system,system-ui,sans-serif;background:#f6f5f2;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0;text-align:center}a{color:#222}</style>
+<script>(function(){var qs=new URLSearchParams(location.search),p=qs.get('p')||'';if(!p&&location.hash.indexOf('#/c')===0)p=location.hash.slice(1);
+if(/^\/c(\/|$|\?)/.test(p)){var m=p.match(/^\/c\/([A-Za-z0-9_-]{10,64})/),d='limpiezas/';if(m)d+='?t='+m[1];else if(/[?&]out=1/.test(p))d+='?out=1';location.replace(d);return;}
+fetch('url.json?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.json()}).then(function(j){
+if(j&&/^https:\/\/[A-Za-z0-9.-]+(:\d+)?\/?$/.test(j.url)){var a=document.getElementById('go');a.href=j.url;location.replace(j.url);}}).catch(function(){});})();</script>
+</head><body><div><h3>Airbnb Ops</h3><p><a id="go" href="#">Open the board</a> (PIN required)</p></div></body></html>
