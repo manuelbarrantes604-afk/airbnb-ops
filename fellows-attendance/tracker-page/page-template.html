@@ -199,7 +199,7 @@ footer { text-align: center; font-size: 12px; color: var(--muted); padding-botto
   </header>
   <main id="view"></main>
   <footer><div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:6px"><button class="linkbtn" id="fb-btn" type="button">Feedback</button><span id="backup-slot"></span></div>
-    <span id="conn"></span>For the invited class and program staff · Not an official government system · v16</footer>
+    <span id="conn"></span>For the invited class and program staff · Not an official government system · v17</footer>
 </div>
 <div id="layer"></div>
 <div id="toast" aria-live="polite"></div>
@@ -461,9 +461,8 @@ function sheetEvent(e) {
   const chips = (cur) => `<div class="chips" role="radiogroup" aria-label="Reason">${REASONS.map((r) => `<button class="chip" role="radio" aria-checked="${cur === r}" data-act="reason" data-r="${r}">${r}</button>`).join("")}</div>`;
   if (!isStaff()) {
     if (mine && !changing) body = `<div class="status out"><span><b>${past ? "You missed this" : "You'll miss this"}</b><br><span style="font-size:13px">Reason: ${esc(a.reason || "not given")}${a.note ? " · “" + esc(a.note) + "”" : ""}</span></span><button data-act="undo" data-e="${e.id}">Undo</button></div>
-      ${past ? "" : `<button class="ghost" data-act="change">Change reason or note</button>`}`;
-    else if (past && !mine) body = `<div class="status ok"><b>No absence reported</b></div>`;
-    else body = `<p class="label" style="font-size:15px;color:var(--ink)">Why will you miss it?</p>${chips(draftReason)}
+      <button class="ghost" data-act="change">Change reason or note</button>`;
+    else body = `${past && !mine ? `<div class="status ok" style="margin-bottom:12px"><span><b>No absence recorded</b><br><span style="font-size:13px">Missed it? Add it below.</span></span></div>` : ""}<p class="label" style="font-size:15px;color:var(--ink)">${past ? "Why did you miss it?" : "Why will you miss it?"}</p>${chips(draftReason)}
       <label class="label" for="ab-note">Short note (optional)</label>
       <textarea class="f" id="ab-note" maxlength="200" style="min-height:64px" placeholder="e.g. Back by 1:30">${esc(draftNote)}</textarea>
       <button class="cta" style="margin-top:12px" data-act="miss" data-e="${e.id}" ${draftReason ? "" : "disabled"}>${draftReason ? (changing ? "Save changes" : "Save absence") : "Choose a reason"}</button>
@@ -810,7 +809,7 @@ document.addEventListener("click", async (ev) => {
     case "scrim": if (ev.target === t) { sheet = null; renderSheet(); } break;
     case "reason": draftReason = d.r; draftNote = document.getElementById("ab-note")?.value || draftNote; renderSheet(); break;
     case "miss": { if (!draftReason) return; const note = (document.getElementById("ab-note")?.value || "").trim(); const was = changing, reason = draftReason, fid = AS; changing = false; sheet = null;
-      if (await putEntry(fid, E.id, { kind: "absent", reason, note })) toast(was ? `Reason updated: ${reason}` : `Saved: you'll miss ${fmtD(E.date)} (${reason})`, () => putEntry(fid, E.id, { kind: "removed" })); break; }
+      if (await putEntry(fid, E.id, { kind: "absent", reason, note })) toast(was ? `Reason updated: ${reason}` : isPast(E) ? `Saved: you missed ${fmtD(E.date)} (${reason})` : `Saved: you'll miss ${fmtD(E.date)} (${reason})`, () => putEntry(fid, E.id, { kind: "removed" })); break; }
     case "undo": { const prev = ABS[AS + "|" + E.id], fid = AS; if (await putEntry(fid, E.id, { kind: "removed" })) toast("Absence removed", () => prev && putEntry(fid, E.id, { kind: "absent", reason: prev.reason, note: prev.note })); break; }
     case "staffundo": { const prev = ABS[d.f + "|" + E.id], f = d.f; if (await putEntry(f, E.id, { kind: isPast(E) ? "attended" : "removed" })) toast(`${fx(f).name}: ${isPast(E) ? "marked as attended" : "absence removed"}`, () => prev && putEntry(f, E.id, { kind: "absent", reason: prev.reason, note: prev.note })); break; }
     case "staffadd": { const f = document.getElementById("add-f").value; if (!f) return; const reason = document.getElementById("add-r").value || "Not given"; if (await putEntry(f, E.id, { kind: "absent", reason, note: "" })) toast(`${fx(f).name} marked ${isPast(E) ? "absent" : "out"}`, () => putEntry(f, E.id, { kind: "removed" })); break; }

@@ -58,6 +58,18 @@ const results = []; const ok = (n, c, d = '') => { results.push(c); console.log(
   await fel.locator('.day', { hasText: /^17$/ }).first().click(); await fel.locator('#layer').getByRole('button', { name: 'Undo' }).click(); await fel.waitForTimeout(150);
   await staff.waitForTimeout(150);
   ok('Fellow undo removes it for staff too', (await staff.locator('.panel .rrow', { hasText: 'Fellow 03' }).innerText()).trim().endsWith('0'));
+  // 6b. a Fellow records, changes and undoes an absence for a talk that already happened (Nov 3)
+  await fel.locator('[data-act=close]').click().catch(() => {});
+  await fel.locator('.day', { hasText: /^3$/ }).first().click(); await fel.waitForTimeout(80);
+  ok('Past talk asks "Why did you miss it?"', await fel.getByText('Why did you miss it?').isVisible());
+  await fel.getByRole('radio', { name: 'Illness' }).click(); await fel.getByRole('button', { name: 'Save absence' }).click(); await fel.waitForTimeout(150);
+  await staff.waitForTimeout(150);
+  ok('Past absence counts in the report', (await staff.locator('.panel .rrow', { hasText: 'Fellow 03' }).innerText()).trim().endsWith('1'));
+  await fel.locator('.day', { hasText: /^3$/ }).first().click(); await fel.getByRole('button', { name: 'Change reason or note' }).click(); await fel.getByRole('radio', { name: 'Travel' }).click(); await fel.getByRole('button', { name: 'Save changes' }).click(); await fel.waitForTimeout(100);
+  await fel.locator('.day', { hasText: /^3$/ }).first().click();
+  ok('Past absence reason can be changed', (await fel.locator('.status').innerText()).includes('Travel'));
+  await fel.locator('#layer').getByRole('button', { name: 'Undo' }).click(); await fel.waitForTimeout(150); await staff.waitForTimeout(150);
+  ok('Past absence can be undone', (await staff.locator('.panel .rrow', { hasText: 'Fellow 03' }).innerText()).trim().endsWith('0'));
   // 7. backup
   await staff.getByRole('button', { name: 'Download backup' }).click(); await staff.waitForTimeout(150);
   const bk = await staff.evaluate(() => window.__dl);
