@@ -199,7 +199,7 @@ footer { text-align: center; font-size: 12px; color: var(--muted); padding-botto
   </header>
   <main id="view"></main>
   <footer><div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:6px"><button class="linkbtn" id="fb-btn" type="button">Feedback</button><span id="backup-slot"></span></div>
-    <span id="conn"></span>For the invited class and program staff · Not an official government system · v15</footer>
+    <span id="conn"></span>For the invited class and program staff · Not an official government system · v16</footer>
 </div>
 <div id="layer"></div>
 <div id="toast" aria-live="polite"></div>
@@ -707,9 +707,9 @@ function sheetFeedback() {
 let fbFor = "cal", fbMsg = "";
 async function initCaps() {
   try {
-    if (!(window.claude && window.claude.use)) { fbState = "off"; return paint(); }
+    if (!(window.claude && window.claude.use)) { fbState = "off"; paint(); return render(); }
     db = await window.claude.use("db"); userCap = await window.claude.use("user"); assetsCap = await window.claude.use("assets"); dl = await window.claude.use("downloads");
-    if (!db) { fbState = "off"; return paint(); }
+    if (!db) { fbState = "off"; paint(); return render(); }
     if (userCap) { myId = await userCap.id(); isOwner = await userCap.isOwner(); canEdit = !!(await userCap.canEdit()); }
     const timer = setTimeout(() => { if (fbState === "loading") { fbState = "slow"; paint(); } }, 10000);
     db.collection("feedback").orderBy("at", "desc").onSnapshot((s) => { clearTimeout(timer); fbState = "ready"; notes = s.docs.map((d) => ({ id: d.id, ...d.data() })); paint(); names_(); }, () => { fbState = "off"; paint(); });
@@ -726,7 +726,7 @@ async function initCaps() {
     db.collection("brand").onSnapshot((s) => { const d = s.docs.find((x) => x.id === "main"); brand = d ? d.data() : {}; render(); }, () => {});
     db.collection("roster").onSnapshot((s) => { roster = {}; s.docs.forEach((d) => (roster[d.id] = d.data())); render(); }, () => {});
     paint();
-  } catch { fbState = "off"; paint(); }
+  } catch { fbState = "off"; paint(); render(); }
 }
 async function names_() {
   if (!userCap) return; const ids = [...new Set(notes.map((n) => n.by).concat(Object.keys(claims)).filter(Boolean))]; if (!ids.length) return;
@@ -757,7 +757,7 @@ function render() {
   tabs.querySelectorAll("button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.v === tab)));
   document.getElementById("view").innerHTML = tab === "report" ? vReport() : tab === "update" ? vUpdate() : vCalendar();
   document.getElementById("backup-slot").innerHTML = live && canEdit ? `<button class="linkbtn" data-act="backup">Download backup</button>` : "";
-  document.getElementById("conn").innerHTML = live ? "" : `<b style="color:var(--out)">Not connected: changes aren't shared.</b> `;
+  document.getElementById("conn").innerHTML = !live && fbState === "off" ? `<b style="color:var(--out)">Not connected: sign in to claude.ai to save and see the group's absences.</b> ` : "";
   renderSheet(); paint();
 }
 function renderSheet() {
