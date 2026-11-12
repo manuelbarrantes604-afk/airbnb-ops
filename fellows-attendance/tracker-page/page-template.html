@@ -1,0 +1,963 @@
+<title>White House Fellows Attendance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap">
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: one narrow column — header, month grid, list of talks; details in a short bottom card */
+:root {
+  --bg: #f6f4ef; --card: #ffffff; --ink: #0a3161; --muted: #5f5d57; --line: #dbd9d4; --line2: #cfccc4;
+  --gold: #cd931e; --gold-ink: #8b6414; --gold-soft: #faf4e9; --on: #0a3161; --on-ink: #ffffff;
+  --out: #b31942; --out-soft: #f7e8ec; --ok: #1c6b43; --ok-soft: #e8f0ec; --shade: rgb(10 49 97 / .42);
+  --serif: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+  --sans: "Segoe UI Variable Text", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #08182f; --card: #0f2442; --ink: #eef2f8; --muted: #a8b3c4; --line: #1f3657; --line2: #2c4770;
+  --gold: #e0ab3e; --gold-ink: #f0c56a; --gold-soft: #2a2414; --on: #e0ab3e; --on-ink: #0a1d38;
+  --out: #ff8fa6; --out-soft: #3a1622; --ok: #7fd1a8; --ok-soft: #12301f; --shade: rgb(0 0 0 / .55); color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #08182f; --card: #0f2442; --ink: #eef2f8; --muted: #a8b3c4; --line: #1f3657; --line2: #2c4770;
+  --gold: #e0ab3e; --gold-ink: #f0c56a; --gold-soft: #2a2414; --on: #e0ab3e; --on-ink: #0a1d38;
+  --out: #ff8fa6; --out-soft: #3a1622; --ok: #7fd1a8; --ok-soft: #12301f; --shade: rgb(0 0 0 / .55); color-scheme: dark }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 16px; line-height: 1.45; }
+button, select, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; border-radius: 8px; }
+h1, h2 { font-family: var(--serif); margin: 0; font-weight: 400; text-wrap: balance; letter-spacing: -.005em; }
+.brand { display: flex; gap: 14px; align-items: center; }
+#logo-slot img { width: 64px; height: 64px; object-fit: contain; display: block; }
+#logo-slot:empty { display: none; }
+.addlogo { position: relative; width: 64px; height: 64px; border-radius: 50%; border: 2px dashed var(--gold); display: grid; place-items: center; text-align: center; font-size: 11px; font-weight: 800; color: var(--gold-ink); line-height: 1.1; padding: 6px; cursor: pointer; }
+.addlogo input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+h1 em { font-style: italic; color: var(--out); }
+p { margin: 0; }
+.wrap { max-width: 560px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+/* prototype strip */
+.strip { background: #0a3161; color: #fff; border-bottom: 3px solid #b31942; font-size: 13px; }
+.strip .wrap { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; padding-block: 7px; }
+.strip select { background: transparent; color: inherit; border: 1px solid currentColor; border-radius: 8px; padding: 2px 6px; min-height: 32px; opacity: .95; }
+.strip select option { color: #14213d; background: #fff; }
+.strip button { background: none; border: 0; color: inherit; text-decoration: underline; font-weight: 700; min-height: 32px; padding: 0; }
+.strip .grow { flex: 1; }
+
+/* header */
+header { padding-block: 22px 8px; display: grid; gap: 2px; }
+.eyebrow { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--gold-ink); font-weight: 800; }
+h1 { font-size: 34px; line-height: 1.05; }
+.tabs { display: flex; gap: 4px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 4px; margin-top: 14px; }
+.tabs button { flex: 1; min-height: 40px; font-size: 14px; padding: 0 4px; border: 0; border-radius: 9px; background: transparent; font-weight: 700; color: var(--muted); }
+.tabs button[aria-selected="true"] { background: var(--on); color: var(--on-ink); }
+
+/* month */
+.monthbar { display: flex; align-items: center; justify-content: space-between; margin: 18px 0 8px; }
+.monthbar h2 { font-size: 24px; }
+.icon { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line2); background: var(--card); font-size: 20px; line-height: 1; }
+.grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; text-align: center; }
+.grid .wd { font-size: 11px; font-weight: 700; color: var(--muted); padding-bottom: 4px; letter-spacing: .04em; }
+.day { height: 44px; border: 0; background: transparent; border-radius: 10px; display: grid; place-items: center; align-content: center; gap: 3px; font-size: 14px; font-variant-numeric: tabular-nums; padding: 0; }
+.day[disabled] { cursor: default; }
+.day.has { font-weight: 700; }
+.day.has:hover { background: var(--gold-soft); }
+.day.today span:first-child { border-bottom: 2px solid var(--gold); }
+.day .dots { display: flex; gap: 3px; height: 5px; }
+.day .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+.day .dots i.mine { background: var(--out); }
+.day .dots i.talk { background: var(--ok); }
+.day .dots .cnt { font-size: 10px; line-height: 6px; color: var(--out); font-weight: 800; }
+.day.has span:first-child { color: var(--ink); }
+.day.missday span:first-child { color: var(--out); }
+.day.sel { background: var(--on); color: var(--on-ink); }
+.day.sel .dots i { background: var(--on-ink); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--muted); margin-top: 6px; }
+.legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); margin-right: 5px; vertical-align: 0; }
+.legend i.mine { background: var(--out); }
+.legend i.talk { background: var(--ok); }
+
+/* list */
+.list { margin: 18px 0 40px; display: grid; gap: 8px; }
+.listhead { display: flex; justify-content: space-between; align-items: baseline; margin-top: 18px; }
+.listhead h2 { font-size: 17px; font-family: var(--sans); }
+.linkbtn { background: none; border: 0; padding: 6px 0; color: var(--ink); font-weight: 700; font-size: 14px; text-decoration: underline; text-underline-offset: 3px; min-height: 36px; }
+.ev { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 12px; align-items: center; width: 100%; text-align: left; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; }
+.ev:hover { border-color: var(--gold); }
+.ev.past { opacity: .62; }
+.ev.hl { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
+.datechip { text-align: center; line-height: 1.05; border-right: 1px solid var(--line); padding-right: 10px; }
+.datechip b { display: block; font-family: var(--serif); font-size: 26px; font-weight: 400; }
+.datechip span { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+.ev .t { font-weight: 700; font-size: 15px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ev .m { display: block; font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tag { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 3px 9px; white-space: nowrap; border: 1px solid transparent; }
+.tag.out { background: var(--out-soft); color: var(--out); }
+.tag.ok { background: var(--ok-soft); color: var(--ok); }
+.tag.n { background: var(--gold-soft); color: var(--gold-ink); }
+.tag.q { color: var(--muted); border-color: var(--line2); }
+
+/* sheet */
+.scrim { position: fixed; inset: 0; background: var(--shade); z-index: 40; display: flex; align-items: flex-end; justify-content: center; }
+.sheet { background: var(--card); width: 100%; max-width: 560px; max-height: 86%; overflow-y: auto; border-radius: 22px 22px 0 0; padding: 8px 20px calc(20px + env(safe-area-inset-bottom, 0px)); }
+@media (min-width: 640px) { .scrim { align-items: center; } .sheet { border-radius: 22px; } }
+.grab { width: 40px; height: 4px; border-radius: 4px; background: var(--line2); margin: 4px auto 12px; }
+.sheet .top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.sheet h2 { font-size: 26px; line-height: 1.15; }
+.x { flex: none; width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--bg); font-size: 20px; color: var(--muted); }
+.facts { margin: 10px 0 16px; display: grid; gap: 2px; font-size: 14px; color: var(--muted); }
+.facts b { color: var(--ink); font-weight: 600; }
+.cta { width: 100%; min-height: 52px; border-radius: 14px; border: 0; background: var(--on); color: var(--on-ink); font-weight: 800; font-size: 17px; }
+.cta[disabled] { opacity: .5; }
+.ghost { width: 100%; min-height: 48px; border-radius: 14px; border: 1px solid var(--line2); background: var(--card); font-weight: 700; }
+.status { border-radius: 14px; padding: 12px 14px; display: flex; align-items: center; gap: 12px; justify-content: space-between; margin-bottom: 10px; }
+.status.out { background: var(--out-soft); color: var(--out); }
+.status.ok { background: var(--ok-soft); color: var(--ok); }
+.status button { background: var(--card); color: var(--ink); border: 1px solid var(--line2); border-radius: 10px; min-height: 40px; padding: 0 14px; font-weight: 700; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
+.chip { min-height: 40px; border-radius: 999px; padding: 6px 14px; border: 1px solid var(--line2); background: var(--card); font-size: 14px; font-weight: 600; }
+.chip[aria-checked="true"] { background: var(--on); color: var(--on-ink); border-color: var(--on); }
+.label { font-size: 13px; font-weight: 700; color: var(--muted); margin: 6px 0 4px; }
+.who { display: grid; gap: 6px; margin: 4px 0 14px; }
+.whorow { display: flex; align-items: center; gap: 10px; font-size: 15px; }
+.whorow .nm { flex: 1; min-width: 0; }
+.whorow .nm small { display: block; color: var(--muted); font-size: 12px; }
+.whorow button { border: 1px solid var(--line2); background: var(--card); border-radius: 10px; min-height: 36px; padding: 0 10px; font-size: 13px; font-weight: 700; }
+.av { width: 32px; height: 32px; border-radius: 50%; flex: none; display: inline-grid; place-items: center; background: var(--gold-soft); color: var(--ink); font-family: var(--serif); font-weight: 700; font-size: 12px; border: 1px solid var(--line); object-fit: cover; }
+.av.lg { width: 56px; height: 56px; font-size: 18px; }
+.note { font-size: 12px; color: var(--muted); margin-top: 10px; }
+select.f, input.f, textarea.f { width: 100%; min-height: 44px; border: 1px solid var(--line2); border-radius: 12px; padding: 9px 12px; background: var(--card); }
+textarea.f { min-height: 140px; font-size: 14px; }
+
+/* report */
+.summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 16px 0; }
+.summary div { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
+.summary b { display: block; font-family: var(--serif); font-size: 26px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.summary span { font-size: 12px; color: var(--muted); }
+.rrow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.rrow:last-child { border-bottom: 0; }
+.rrow .d { font-size: 12px; color: var(--muted); }
+.rrow .n { font-family: var(--serif); font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 28px; text-align: right; }
+.rrow .n.zero { color: var(--muted); font-weight: 400; }
+.panel { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 4px 14px; }
+.actions { display: flex; gap: 8px; margin: 14px 0 40px; }
+.actions .ghost { flex: 1; }
+.updates { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; margin-top: 14px; }
+.updates h3 { font-size: 14px; margin: 0 0 4px; font-family: var(--sans); display: flex; justify-content: space-between; align-items: center; }
+.upd { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; font-size: 13px; padding: 5px 0; border-top: 1px solid var(--line); }
+.upd:first-of-type { border-top: 0; }
+.upd small { color: var(--muted); white-space: nowrap; }
+.staffbar { display: flex; gap: 8px; margin-top: 14px; }
+.staffbar .ghost { flex: 1; min-height: 44px; }
+.ev.canceled .t { text-decoration: line-through; }
+.seg { display: flex; gap: 4px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
+.seg button { border: 0; background: transparent; border-radius: 8px; min-height: 36px; padding: 0 12px; font-weight: 700; font-size: 14px; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--on); color: var(--on-ink); }
+.ytable { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 16px; }
+.ytable table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.ytable th, .ytable td { padding: 9px 7px; border-bottom: 1px solid var(--line); text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ytable th { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.ytable td:first-child, .ytable th:first-child { text-align: left; position: sticky; left: 0; background: var(--card); }
+.ytable td.z { color: var(--muted); opacity: .55; }
+.pl { color: var(--gold-ink); font-weight: 700; font-size: 12px; margin-left: 3px; }
+.ytable td.pl2 { color: var(--gold-ink); }
+.ytable td.tot { font-weight: 800; font-family: var(--serif); font-size: 17px; }
+.ytable tr:last-child td { border-bottom: 0; }
+.ytable button { background: none; border: 0; padding: 0; font-weight: 700; display: flex; gap: 8px; align-items: center; text-align: left; }
+.diff { display: grid; gap: 6px; margin: 4px 0 14px; }
+.diff .whorow { align-items: flex-start; }
+.whoami { display: flex; align-items: center; gap: 10px; margin-top: 14px; background: var(--card); border: 1.5px solid var(--gold); border-radius: 14px; padding: 6px 6px 6px 14px; }
+.whoami span { font-size: 13px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.whoami select { flex: 1; min-width: 0; min-height: 40px; border: 0; background: var(--gold-soft); border-radius: 10px; padding: 0 10px; font-weight: 800; font-size: 16px; color: var(--ink); }
+.role { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 14px; }
+.role button { min-height: 46px; border-radius: 12px; border: 1.5px solid var(--line2); background: var(--card); font-weight: 800; font-size: 15px; color: var(--muted); }
+.role button[aria-pressed="true"] { border-color: var(--gold); background: var(--gold-soft); color: var(--ink); }
+.tabs { margin-top: 10px; }
+footer { text-align: center; font-size: 12px; color: var(--muted); padding-bottom: 40px; }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); z-index: 60; background: #0a3161; color: #fff; border-radius: 14px; padding: 8px 8px 8px 16px; display: flex; gap: 12px; align-items: center; width: min(420px, calc(100% - 32px)); box-shadow: 0 8px 30px rgb(0 0 0 / .3); font-size: 15px; }
+.toast button { background: rgb(255 255 255 / .15); color: #fff; border: 1px solid rgb(255 255 255 / .45); border-radius: 10px; min-height: 38px; padding: 0 12px; font-weight: 700; }
+.drawer .item { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; gap: 4px; font-size: 14px; }
+.drawer .item small { color: var(--muted); font-size: 12px; }
+.drawer .item .a { display: flex; gap: 12px; }
+.drawer .item .a button { background: none; border: 0; padding: 0; text-decoration: underline; font-size: 12px; font-weight: 700; min-height: 28px; }
+@media (prefers-reduced-motion: no-preference) { .sheet { animation: up .18s ease-out; } @keyframes up { from { transform: translateY(24px) } to { transform: none } } }
+</style>
+
+
+
+<div class="wrap">
+  <header>
+    <div class="brand"><span id="logo-slot"></span><div><span class="eyebrow">Speaker Series</span>
+    <h1>White House Fellows <em>Attendance</em></h1></div></div>
+    <label class="whoami" for="as-sel" id="who-pick"><span>Who's using this?</span><select id="as-sel"></select></label>
+    <p class="whoami" id="who-fixed" hidden style="padding:10px 14px"><span>Signed in as</span><b id="who-name" style="flex:1;font-size:16px"></b></p>
+    <div class="tabs" role="tablist" id="tabs" hidden>
+      <button role="tab" data-act="tab" data-v="cal">Calendar</button>
+      <button role="tab" data-act="tab" data-v="report">Report</button>
+      <button role="tab" data-act="tab" data-v="update">Edit Schedule</button>
+    </div>
+  </header>
+  <main id="view"></main>
+  <footer><div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:6px"><button class="linkbtn" id="fb-btn" type="button">Feedback</button><span id="backup-slot"></span></div>
+    <span id="conn"></span>For the invited class and program staff · Not an official government system · v15</footer>
+</div>
+<div id="layer"></div>
+<div id="toast" aria-live="polite"></div>
+
+<script>
+const SCHEDULE_TEXT = __SCHEDULE__;
+
+/* ---------- reading the staff schedule (same format staff send) */
+const MONTHS = { January:1, February:2, March:3, April:4, May:5, June:6, July:7, August:8, September:9, October:10, November:11, December:12 };
+const pad2 = (n) => String(n).padStart(2, "0");
+function to24(t) { const m = t.trim().toLowerCase().match(/^(\d{1,2})(?::(\d{2}))?\s*([ap]m)$/); if (!m) return null; let h = +m[1] % 12; if (m[3] === "pm") h += 12; return pad2(h) + ":" + (m[2] || "00"); }
+function parseSchedule(text) {
+  const out = []; let dates = null, ev = null, prevRaw = "";
+  const dateRe = /^(?:Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day(?:\s*-\s*\w+day)?,\s+([A-Z][a-z]+)\s+(\d{1,2})(?:\s*-\s*(\d{1,2}))?,\s+(\d{4})$/;
+  const timeRe = /^(?:(\d{1,2}(?::\d{2})?\s*[ap]m)\s*-\s*(\d{1,2}(?::\d{2})?\s*[ap]m)|(all day))\s*:?\s*(.+)$/i;
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim(); if (!line) continue;
+    let m = line.match(dateRe);
+    if (m && MONTHS[m[1]]) { const y = m[4], mo = pad2(MONTHS[m[1]]); dates = { start: `${y}-${mo}-${pad2(m[2])}`, end: m[3] ? `${y}-${mo}-${pad2(m[3])}` : null }; ev = null; continue; }
+    m = line.match(timeRe);
+    if (m && dates) { prevRaw = raw; ev = { date: dates.start, endDate: dates.end, allDay: !!m[3], start: m[3] ? null : to24(m[1]), end: m[3] ? null : to24(m[2]), title: m[4].trim(), roles: [], audience: "", location: "" }; out.push(ev); continue; }
+    if (!ev) continue;
+    m = line.match(/^(Presiding Fellow|Chair|Secretary|Moderator|Host)\s*:\s*(.+)$/i);
+    if (m) { ev.roles.push([m[1], m[2].trim()]); continue; }
+    if (/^White House Fellows/i.test(line)) { ev.audience = line; continue; }
+    if (!ev.audience) { ev.title += (/^\t/.test(raw) || !/\s$/.test(prevRaw) ? " · " : " ") + line; prevRaw = raw; continue; } // wrapped line (previous ends in a space) or a second item
+    if (!ev.location) ev.location = line;
+  }
+  for (const e of out) {
+    const t = e.title.toLowerCase(), a = e.audience.toLowerCase();
+    e.title = e.title.replace(/\s+/g, " ").trim();
+    e.kind = /meeting/.test(t) ? "Meeting" : /conference|luncheon/.test(t) ? "Conference" : /bowling|dinner|reception/.test(t) || /spouse/.test(a) ? "Social" : /tour|session|101/.test(t) ? "Program session" : "Speaker Series";
+    e.optional = e.kind === "Social" || e.allDay;
+    e.key = e.date + "|" + (e.start || "allday") + "|" + e.title.toLowerCase().slice(0, 40);
+  }
+  return out;
+}
+
+/* ---------- helpers */
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const WD = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], MN = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const MONTHNAME = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const dObj = (k) => { const [y, m, d] = k.split("-").map(Number); return new Date(Date.UTC(y, m - 1, d, 12)); };
+const fmtD = (k) => { const d = dObj(k); return `${WD[d.getUTCDay()]}, ${MN[d.getUTCMonth()]} ${d.getUTCDate()}`; };
+const fmtLong = (k) => dObj(k).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
+const fmtT = (t) => { if (!t) return ""; let [h, m] = t.split(":").map(Number); const ap = h >= 12 ? "PM" : "AM"; h = h % 12 || 12; return m ? `${h}:${pad2(m)} ${ap}` : `${h} ${ap}`; };
+const when = (e) => e.allDay ? "All day" : `${fmtT(e.start)} – ${fmtT(e.end)}`;
+const shortLoc = (l) => (l || "").replace(/Eisenhower Executive Office Building,?\s*(EEOB\s*[–-]?\s*)?/, "EEOB ").trim();
+const REASONS = ["Military training/duty", "Placement work obligation", "Illness", "Personal/family", "Travel", "Other"];
+
+/* ---------- people (placeholders unless staff add names/photos) */
+const FELLOWS = Array.from({ length: 11 }, (_, i) => ({ id: "f" + (i + 1), base: "Fellow " + pad2(i + 1), name: "Fellow " + pad2(i + 1), ini: pad2(i + 1), photo: null }));
+let roster = {};
+function applyRoster() {
+  for (const f of FELLOWS) { const r = roster[f.id] || {}; f.name = (r.name || "").trim() || f.base; f.photo = r.photo || null;
+    const p = f.name.split(/\s+/); f.ini = /^Fellow \d+$/.test(f.name) ? f.base.slice(-2) : ((p[0][0] || "") + (p.length > 1 ? p[p.length - 1][0] : "")).toUpperCase(); }
+}
+const fx = (id) => FELLOWS.find((f) => f.id === id);
+const av = (f, cls = "") => f.photo ? `<img class="av ${cls}" src="/_blob/${esc(f.photo)}" alt="">` : `<span class="av ${cls}" aria-hidden="true">${esc(f.ini)}</span>`;
+
+/* ---------- state: shared data (saved in this page's database) */
+let changing = false, draftNote = "";
+let EVENTS = [], ABS = {}, ATTENDED = {}, NOW, AS = "staff", tab = "cal", month = "2026-11", selDay = null, sheet = null, draftReason = null;
+let SCHED_LOG = [], LOG = [];          // schedule history (saved) + derived absence history
+let absDocs = {}, staffAbs = {}, claims = {}; // absences/{uid}, staffabs/{fid}, claims/{uid}
+let schedLoaded = false, live = false;
+const pad = (n) => String(n).padStart(2, "0");
+function etNow() { const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).formatToParts(new Date()).map((x) => [x.type, x.value])); return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`; }
+function hash(str) { let h = 5381; for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0; return h.toString(36); }
+const eidOf = (e) => "e" + hash(e.date + "|" + (e.start || "allday") + "|" + e.title.toLowerCase().slice(0, 40));
+function seed() {
+  EVENTS = parseSchedule(SCHEDULE_TEXT).map((e) => ({ ...e, id: eidOf(e) }));
+  SCHED_LOG = [
+    { at: "2026-10-30T14:30", text: "Program staff added the November schedule (9 events)" },
+    { at: "2026-09-29T14:30", text: "Program staff added the October schedule (11 events)" },
+    { at: "2026-08-31T14:30", text: "Program staff added the September schedule (5 events)" },
+  ];
+}
+const isEditor = () => !live || canEdit;           // without a database (local preview) everything is editable
+const myKey = () => (live ? myId : "local");
+const myClaim = () => (claims[myKey()] || {}).fid || null;
+function ago(at) { const h = Math.round((nowMs() - Date.parse(at + ":00Z")) / 3600000); if (h < 1) return "just now"; if (h < 24) return h + "h ago"; const d = Math.round(h / 24); return d === 1 ? "yesterday" : d + " days ago"; }
+const who = () => (isStaff() ? "Program staff" : fx(AS).name);
+function logIt(text) { SCHED_LOG.unshift({ at: NOW, text }); SCHED_LOG = SCHED_LOG.slice(0, 200); }
+
+/* merge every saved entry: for each Fellow + event, the latest entry wins */
+function computeAbs() {
+  const latest = {}, hist = [];
+  const consider = (fid, eid, it, src) => {
+    if (!fid || !it || !it.at) return; const k = fid + "|" + eid;
+    if (!latest[k] || latest[k].at < it.at) latest[k] = { ...it, src };
+    const ev = EVENTS.find((x) => x.id === eid); const nm = (fx(fid) || {}).name || "A Fellow"; const dt = ev ? fmtD(ev.date).slice(5) : "an event";
+    hist.push({ at: it.at, text: it.kind === "absent" ? `${src === "staff" ? "Program staff marked " + nm + " absent" : nm + " will miss"} ${dt} (${it.reason || "no reason"})` : it.kind === "attended" ? `Program staff marked ${nm} as attended ${dt}` : `${src === "staff" ? "Program staff removed " + nm + "'s absence for" : nm + " removed their absence for"} ${dt}` });
+  };
+  for (const [uid, doc] of Object.entries(absDocs)) { const fid = (claims[uid] || {}).fid; if (!fid || !doc || !doc.items) continue; for (const [eid, it] of Object.entries(doc.items)) consider(fid, eid, it, "fellow"); }
+  for (const [fid, doc] of Object.entries(staffAbs)) { if (!doc || !doc.items) continue; for (const [eid, it] of Object.entries(doc.items)) consider(fid, eid, it, "staff"); }
+  ABS = {}; ATTENDED = {};
+  for (const [k, it] of Object.entries(latest)) { if (it.kind === "absent") ABS[k] = { reason: it.reason || "", note: it.note || "" }; }
+  LOG = SCHED_LOG.concat(hist).sort((a, b) => (a.at < b.at ? 1 : -1));
+}
+/* write one entry: a Fellow writes their own record; staff write to the Fellow's staff record */
+async function putEntry(fid, eid, item) {
+  const entry = { ...item, at: NOW + ":" + pad(new Date().getSeconds()) };
+  entry.at = entry.at.slice(0, 16);
+  const asFellow = !isEditor() || (!live);
+  let path, before, next;
+  if (live && !isEditor()) {
+    before = absDocs[myId]; next = { fid, items: { ...((before || {}).items || {}), [eid]: entry } };
+    absDocs[myId] = next; path = "absences/" + myId;
+  } else if (!live) {
+    claims.local = { fid: AS === "staff" ? null : AS };
+    before = staffAbs[fid]; next = { items: { ...((before || {}).items || {}), [eid]: { ...entry, by: AS } } };
+    staffAbs[fid] = next; path = null;
+  } else {
+    before = staffAbs[fid]; next = { items: { ...((before || {}).items || {}), [eid]: { ...entry, by: myId } } };
+    staffAbs[fid] = next; path = "staffabs/" + fid;
+  }
+  computeAbs(); render();
+  if (!path || !db) return true;
+  try { await db.doc(path).set(next); return true; }
+  catch (e) {
+    if (path.startsWith("absences/")) absDocs[myId] = before; else staffAbs[fid] = before;
+    computeAbs(); render(); toast("Not saved. Check your connection and try again."); return false;
+  }
+}
+async function saveSchedule() {
+  computeAbs();
+  if (!db || !live || !canEdit) return true;
+  try { await db.doc("schedule/main").set({ events: EVENTS, log: SCHED_LOG, at: new Date().toISOString() }); return true; }
+  catch { toast("Schedule not saved. Check your connection and try again."); return false; }
+}
+const t0 = (e) => Date.parse(e.date + "T" + (e.start || "00:00") + ":00Z");
+const nowMs = () => Date.parse(NOW + ":00Z");
+const dueAgo = () => 0;
+const isPast = (e) => t0(e) <= nowMs();
+const sorted = () => EVENTS.slice().sort((a, b) => t0(a) - t0(b));
+const isStaff = () => AS === "staff";
+const absent = (fid, e) => !e.canceled && !!ABS[fid + "|" + e.id] && !ATTENDED[fid + "|" + e.id];
+const outFor = (e) => FELLOWS.filter((f) => absent(f.id, e));
+
+/* ---------- views */
+function vCalendar() {
+  const [y, m] = month.split("-").map(Number);
+  const first = new Date(Date.UTC(y, m - 1, 1)).getUTCDay(), days = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const evs = sorted().filter((e) => e.date.startsWith(month));
+  const today = NOW.slice(0, 10);
+  let cells = WD.map((w) => `<div class="wd">${w[0]}</div>`).join("");
+  for (let i = 0; i < first; i++) cells += `<div></div>`;
+  for (let d = 1; d <= days; d++) {
+    const k = `${month}-${pad2(d)}`, on = evs.filter((e) => e.date === k);
+    const mine = !isStaff() && on.some((e) => absent(AS, e));
+    const missing = new Set(); on.forEach((e) => outFor(e).forEach((f) => missing.add(f.id)));
+    cells += `<button class="day ${on.length ? "has" : ""} ${mine ? "missday" : ""} ${k === today ? "today" : ""} ${selDay === k ? "sel" : ""}" ${on.length ? `data-act="day" data-d="${k}"` : "disabled"} aria-label="${fmtLong(k)}${on.length ? ", " + on.length + " event" + (on.length > 1 ? "s" : "") + ", " + (missing.size ? missing.size + " missing" : "no one missing") : ""}${mine ? ", you plan to miss" : ""}" aria-pressed="${selDay === k}"><span>${d}</span><span class="dots">${!isStaff() ? (on.length ? `<i class="${mine ? "mine" : "talk"}"></i>` : "") : missing.size > 4 ? `<b class="cnt">${missing.size}</b>` : [...missing].map(() => `<i class="mine"></i>`).join("")}</span></button>`;
+  }
+  const shown = selDay ? evs.filter((e) => e.date === selDay) : evs;
+  const staffTop = "";
+  const staffUpd = isStaff() ? `<div class="updates" style="margin:0 0 40px"><h3>Latest updates <button class="linkbtn" style="min-height:28px;padding:0;font-size:13px" data-act="moreupd">${showAllUpd ? "Show fewer" : "See all"}</button></h3>
+      ${LOG.slice(0, showAllUpd ? 50 : 3).map((l) => `<div class="upd"><span>${esc(l.text)}</span><small>${ago(l.at)}</small></div>`).join("")}</div>` : "";
+  return staffTop + `
+    <div class="monthbar"><button class="icon" data-act="month" data-v="-1" aria-label="Previous month">‹</button><h2>${MONTHNAME[m - 1]} ${y}</h2><button class="icon" data-act="month" data-v="1" aria-label="Next month">›</button></div>
+    <div class="grid">${cells}</div>
+    <div class="legend">${isStaff() ? `<span><i class="mine"></i>1 dot = 1 person missing</span>` : `<span><i class="talk"></i>Talk day</span><span><i class="mine"></i>You'll miss</span>`}</div>
+    <div class="listhead"><h2>${selDay ? fmtLong(selDay) : "This month"}</h2>
+      ${selDay ? `<button class="linkbtn" data-act="day" data-d="">Show all</button>` : ""}</div>
+    <div class="list">${shown.map(row).join("") || `<p class="note" style="text-align:center;padding:20px 0">No events this month.</p>`}</div>${staffUpd}`;
+}
+function row(e) {
+  const d = dObj(e.date); const out = outFor(e).length;
+  let right = "";
+  if (isStaff()) right = out ? `<span class="tag n">${out} out</span>` : "";
+  else if (absent(AS, e)) right = `<span class="tag out">You'll miss</span>`;
+  if (e.canceled) right = `<span class="tag q">Canceled</span>`;
+  return `<button class="ev ${isPast(e) ? "past" : ""} ${e.canceled ? "canceled" : ""}" data-act="open" data-e="${e.id}">
+    <span class="datechip"><span>${WD[d.getUTCDay()]}</span><b>${d.getUTCDate()}</b></span>
+    <span style="min-width:0"><span class="t">${esc(e.title)}</span><span class="m">${when(e)}${e.location ? " · " + esc(shortLoc(e.location)) : ""}</span></span>
+    ${right || "<span></span>"}</button>`;
+}
+
+function periodLabel() { if (rMode === "year") return "whole year"; if (rMode === "month") return MONTHNAME[+rMonth.slice(5) - 1] + " " + rMonth.slice(0, 4); const e = EVENTS.find((x) => x.id === rDay); return e ? fmtLong(e.date) + " (" + e.title.slice(0, 40) + ")" : "day"; }
+function periodSlug() { if (rMode === "year") return "whole-year"; if (rMode === "month") return rMonth; const e = EVENTS.find((x) => x.id === rDay); return e ? e.date : "day"; }
+function tallyReasons(list) { const t = {}; list.forEach((x) => (t[x.reason] = (t[x.reason] || 0) + 1)); return Object.entries(t).sort((a, b) => b[1] - a[1]); }
+function reportData() {
+  const evs = sorted().filter((e) => (rMode === "year" || (rMode === "month" ? e.date.startsWith(rMonth) : e.id === rDay)) && !e.optional && !e.canceled);
+  const past = evs.filter(isPast), next = evs.filter((e) => !isPast(e));
+  const rows = FELLOWS.map((f) => {
+    const missed = past.filter((e) => absent(f.id, e)).map((e) => ({ e, reason: (ABS[f.id + "|" + e.id] || {}).reason || "Not given" }));
+    const planned = next.filter((e) => absent(f.id, e)).map((e) => ({ e, reason: (ABS[f.id + "|" + e.id] || {}).reason || "Not given" }));
+    return { f, missed, planned };
+  });
+  return { past, rows };
+}
+const monthsWithEvents = () => [...new Set(sorted().filter((e) => !e.optional && !e.canceled).map((e) => e.date.slice(0, 7)))];
+const mShort = (m) => MN[+m.slice(5) - 1];
+function vReport() {
+  const { past, rows } = reportData();
+  const total = rows.reduce((n, r) => n + r.missed.length, 0);
+  const allReasons = tallyReasons(rows.flatMap((r) => r.missed));
+  const one = rFellow ? rows.find((r) => r.f.id === rFellow) : null;
+  const months = monthsWithEvents();
+  const days = sorted().filter((e) => !e.optional && !e.canceled && isPast(e));
+  if (rMode === "month" && !months.includes(rMonth)) rMonth = months.filter((m) => m <= NOW.slice(0, 7)).pop() || months[0];
+  if (rMode === "day" && !days.some((e) => e.id === rDay)) rDay = days.length ? days[days.length - 1].id : "";
+  const filt = `<div class="seg" role="group" aria-label="Show" style="margin:6px 0 10px">${[["year", "Year"], ["month", "Month"]].map(([v, l]) => `<button aria-pressed="${rMode === v}" data-act="rmode" data-v="${v}" style="flex:1">${l}</button>`).join("")}</div>
+    ${rMode === "month" ? `<select class="f" id="r-month" aria-label="Month" style="margin-bottom:12px">${months.map((m) => `<option value="${m}" ${rMonth === m ? "selected" : ""}>${MONTHNAME[+m.slice(5) - 1]} ${m.slice(0, 4)}</option>`).join("")}</select>` : ""}
+    ${rMode === "day" ? `<select class="f" id="r-day" aria-label="Day" style="margin-bottom:12px">${days.length ? days.slice().reverse().map((e) => `<option value="${e.id}" ${rDay === e.id ? "selected" : ""}>${fmtD(e.date)} · ${esc(e.title.slice(0, 48))}</option>`).join("") : `<option>No talks have happened yet</option>`}</select>` : ""}`;
+  const head = one ? `<div class="monthbar"><button class="linkbtn" data-act="pickfellow" data-f="">‹ Everyone</button></div>` : `<div class="monthbar" style="margin-bottom:0"><h2>Speaker Series attendance</h2></div>${filt}`;
+  if (false) {
+    const e = days.find((x) => x.id === rDay);
+    if (!e) return head + `<p class="note">No talks have happened yet.</p>`;
+    const outs = FELLOWS.filter((f) => absent(f.id, e));
+    return head + `<div class="panel" style="padding:14px 16px"><p class="eyebrow">${fmtLong(e.date)}</p><h2 style="font-size:19px;margin:2px 0 6px">${esc(e.title)}</h2>
+      <p style="color:var(--muted);font-size:14px;margin-bottom:8px"><b style="color:var(--ink)">${outs.length} absent</b> · ${FELLOWS.length - outs.length} attended</p>
+      ${outs.map((f) => { const a = ABS[f.id + "|" + e.id] || {}; return `<div class="rrow" style="grid-template-columns:auto minmax(0,1fr)">${av(f)}<div><b>${esc(f.name)}</b><div class="d">${esc(a.reason || "Not given")}${a.note ? " · “" + esc(a.note) + "”" : ""}</div></div></div>`; }).join("") || `<p class="note">Everyone attended.</p>`}</div>
+      <div class="actions"><button class="ghost" data-act="csv">Download spreadsheet</button><button class="ghost" data-act="copy">Copy for email</button></div>`;
+  }
+  if (one) {
+    const reasons = tallyReasons(one.missed);
+    return head + `
+      <div class="panel" style="margin-top:14px;padding:16px">
+        <div style="display:flex;gap:14px;align-items:center">${av(one.f, "lg")}<div style="flex:1;min-width:0"><h2 style="font-size:21px">${esc(one.f.name)}</h2><p class="d" style="color:var(--muted);font-size:13px">${past.length} required events held so far</p></div>
+          <div style="text-align:right"><b style="font-family:var(--serif);font-size:34px;line-height:1">${one.missed.length + one.planned.length}</b><br><span style="font-size:12px;color:var(--muted)">absence${one.missed.length + one.planned.length === 1 ? "" : "s"}</span></div></div>
+        ${rMode === "year" && one.missed.length ? `<p class="d" style="margin-top:10px;font-size:14px">${months.map((m) => `${mShort(m)} <b>${one.missed.filter((x) => x.e.date.startsWith(m)).length}</b>`).join(" · ")}</p>` : ""}
+        ${reasons.length ? `<div class="chips" style="margin:14px 0 4px">${reasons.map(([r, n]) => `<span class="tag n" style="font-size:13px">${esc(r)} · ${n}</span>`).join("")}</div>` : ""}
+        <div style="margin-top:10px">${one.missed.map((x) => `<div class="rrow" style="grid-template-columns:64px minmax(0,1fr)"><b style="font-size:13px">${fmtD(x.e.date).slice(5)}</b><div style="min-width:0"><div style="font-size:14px;font-weight:600">${esc(x.e.title)}</div><div class="d">${esc(x.reason)}${(ABS[one.f.id + "|" + x.e.id] || {}).note ? " · “" + esc(ABS[one.f.id + "|" + x.e.id].note) + "”" : ""}</div></div></div>`).join("") || `<p class="note">No absences.</p>`}</div>
+        ${one.planned.length ? `<p class="label" style="margin-top:12px">Planning to miss</p>${one.planned.map((x) => `<div class="rrow" style="grid-template-columns:64px minmax(0,1fr)"><b style="font-size:13px">${fmtD(x.e.date).slice(5)}</b><div style="min-width:0"><div style="font-size:14px;font-weight:600">${esc(x.e.title)}</div><div class="d">${esc(x.reason)}${(ABS[one.f.id + "|" + x.e.id] || {}).note ? " · “" + esc(ABS[one.f.id + "|" + x.e.id].note) + "”" : ""}</div></div></div>`).join("")}` : ""}
+      </div>
+      <div class="actions"><button class="ghost" data-act="csv">Download spreadsheet</button><button class="ghost" data-act="copy">Copy for email</button></div>`;
+  }
+  return head + `
+
+
+    ${false ? `<div class="ytable"><table><thead><tr><th>Fellow</th>${months.map((m) => `<th>${mShort(m)}</th>`).join("")}<th>Total</th></tr></thead><tbody>
+      ${rows.map((r) => `<tr><td><button data-act="pickfellow" data-f="${r.f.id}">${av(r.f)}${esc(r.f.name)}</button></td>${months.map((m) => { const p = r.missed.filter((x) => x.e.date.startsWith(m)).length, q = r.planned.filter((x) => x.e.date.startsWith(m)).length; return `<td class="${p + q ? "" : "z"}">${p}${q ? `<span class="pl">+${q}</span>` : ""}</td>`; }).join("")}<td class="tot">${r.missed.length}${r.planned.length ? `<span class="pl">+${r.planned.length}</span>` : ""}</td></tr>`).join("")}
+      <tr><td><b>Class</b></td>${months.map((m) => { const p = rows.reduce((n, r) => n + r.missed.filter((x) => x.e.date.startsWith(m)).length, 0), q = rows.reduce((n, r) => n + r.planned.filter((x) => x.e.date.startsWith(m)).length, 0); return `<td><b>${p}</b>${q ? `<span class="pl">+${q}</span>` : ""}</td>`; }).join("")}<td class="tot">${total}${rows.reduce((n, r) => n + r.planned.length, 0) ? `<span class="pl">+${rows.reduce((n, r) => n + r.planned.length, 0)}</span>` : ""}</td></tr></tbody></table></div>
+      <p class="note"><b style="color:var(--ink)">2</b> = talks missed · <span class="pl">+1</span> = planned to miss (upcoming). Tap a name for dates and reasons.</p>` : `<div class="panel">${rows.map((r) => `<button class="rrow" data-act="pickfellow" data-f="${r.f.id}" style="width:100%;background:none;border:0;border-bottom:1px solid var(--line);text-align:left">${av(r.f)}<div style="min-width:0"><b>${esc(r.f.name)}</b>
+</div>
+        <span class="n ${r.missed.length + r.planned.length ? "" : "zero"}">${r.missed.length + r.planned.length}</span></button>`).join("")}</div>
+    <p class="note">Total absences${rMode === "year" ? " this year" : " this month"}, including ones planned ahead. Tap a name for dates and reasons.</p>`}
+    <div class="actions" style="margin-bottom:8px"><button class="ghost" data-act="csv">Download spreadsheet</button><button class="ghost" data-act="copy">Copy for email</button></div>
+    <p style="text-align:center;margin-bottom:32px"><button class="linkbtn" data-act="roster">Fellows' names &amp; photos</button></p>`;
+}
+let rFellow = "";
+let rMode = "year", rDay = "", showAllUpd = false;
+let rMonth = "all"; // report always covers the whole year
+
+function vClaim() {
+  const taken = new Set(Object.entries(claims).filter(([u]) => u !== myId).map(([, c]) => c.fid));
+  return `<section class="panel" style="padding:18px;margin:18px 0 40px">
+    <h2 style="font-size:26px">Welcome! Which Fellow are you?</h2>
+    <p class="note" style="margin:4px 0 14px">Pick your name once. After that, this page opens as you and only you can change your absences. Staff can fix a wrong pick.</p>
+    <div class="who">${FELLOWS.slice().sort((a, b) => a.name.localeCompare(b.name)).map((f) => `<button class="whorow ghost" style="justify-content:flex-start;padding:8px 12px;width:100%" data-act="claim" data-f="${f.id}" ${taken.has(f.id) ? "disabled" : ""}>${av(f)}<span class="nm" style="text-align:left"><b>${esc(f.name)}</b>${taken.has(f.id) ? "<small>Already linked to someone</small>" : ""}</span></button>`).join("")}</div>
+    <p class="note">Program staff: ask the page owner for Editor access instead of picking a name.</p></section>`;
+}
+function sheetEvent(e) {
+  const out = outFor(e), past = isPast(e), mine = !isStaff() && absent(AS, e), a = ABS[AS + "|" + e.id];
+  let body = "";
+  if (e.canceled) return `<div class="grab"></div><div class="top"><div><span class="eyebrow">Canceled</span><h2>${esc(e.title)}</h2></div><button class="x" data-act="close" aria-label="Close">×</button></div>
+    <div class="facts"><span><b>${fmtLong(e.date)}</b> · ${when(e)} ET</span></div><p class="note">This event was dropped from the latest schedule, so it doesn't count toward anyone's absences.</p>`;
+  const chips = (cur) => `<div class="chips" role="radiogroup" aria-label="Reason">${REASONS.map((r) => `<button class="chip" role="radio" aria-checked="${cur === r}" data-act="reason" data-r="${r}">${r}</button>`).join("")}</div>`;
+  if (!isStaff()) {
+    if (mine && !changing) body = `<div class="status out"><span><b>${past ? "You missed this" : "You'll miss this"}</b><br><span style="font-size:13px">Reason: ${esc(a.reason || "not given")}${a.note ? " · “" + esc(a.note) + "”" : ""}</span></span><button data-act="undo" data-e="${e.id}">Undo</button></div>
+      ${past ? "" : `<button class="ghost" data-act="change">Change reason or note</button>`}`;
+    else if (past && !mine) body = `<div class="status ok"><b>No absence reported</b></div>`;
+    else body = `<p class="label" style="font-size:15px;color:var(--ink)">Why will you miss it?</p>${chips(draftReason)}
+      <label class="label" for="ab-note">Short note (optional)</label>
+      <textarea class="f" id="ab-note" maxlength="200" style="min-height:64px" placeholder="e.g. Back by 1:30">${esc(draftNote)}</textarea>
+      <button class="cta" style="margin-top:12px" data-act="miss" data-e="${e.id}" ${draftReason ? "" : "disabled"}>${draftReason ? (changing ? "Save changes" : "Save absence") : "Choose a reason"}</button>
+      <p class="note">Reasons and notes are visible to program staff and the class. Don't include medical details.</p>`;
+  } else {
+    body = `<p class="label">${past ? "Absent" : "Planning to miss"} (${out.length})</p><div class="who">${out.map((f) => `<div class="whorow">${av(f)}<span class="nm">${esc(f.name)}<small>${esc((ABS[f.id + "|" + e.id] || {}).reason || "")}${(ABS[f.id + "|" + e.id] || {}).note ? " · “" + esc(ABS[f.id + "|" + e.id].note) + "”" : ""}</small></span><button data-act="staffundo" data-f="${f.id}" data-e="${e.id}">${past ? "Was here" : "Undo"}</button></div>`).join("") || `<p class="note" style="margin:0">No one${past ? " was recorded absent" : " has said they'll miss it"}.</p>`}</div>
+      <label class="label" for="add-f">Mark someone ${past ? "absent" : "out"}</label>
+      <div style="display:grid;gap:8px;grid-template-columns:1fr 1fr auto"><select class="f" id="add-f" aria-label="Fellow"><option value="">Fellow…</option>${FELLOWS.filter((f) => !absent(f.id, e)).map((f) => `<option value="${f.id}">${esc(f.name)}</option>`).join("")}</select>
+      <select class="f" id="add-r" aria-label="Reason"><option value="">Reason…</option>${REASONS.map((r) => `<option>${r}</option>`).join("")}</select><button class="ghost" style="width:auto;padding:0 14px" data-act="staffadd" data-e="${e.id}">Add</button></div>`;
+  }
+  return `<div class="grab"></div><div class="top"><div><span class="eyebrow">${esc(e.kind)}${e.optional ? " · optional" : ""}</span><h2>${esc(e.title)}</h2></div><button class="x" data-act="close" aria-label="Close">×</button></div>
+    <div class="facts"><span><b>${fmtLong(e.date)}${e.endDate ? " – " + fmtD(e.endDate) : ""}</b> · ${when(e)} ET</span>${e.location ? `<span>${esc(e.location)}</span>` : ""}${e.roles.map(([r, n]) => `<span>${esc(r)}: ${esc(n)}</span>`).join("")}</div>
+    ${body}`;
+}
+
+const SAMPLE_DEC = `Tuesday, December 1, 2026
+12:00pm-1:00pm: \t\tSample Speaker A, Sample Agency (made-up example)
+White House Fellows, White House Fellows Program Staff
+Eisenhower Executive Office Building, 428
+Thursday, December 3, 2026
+12:00pm-1:00pm: \t\tSample Speaker B, Sample Organization (made-up example)
+White House Fellows, White House Fellows Program Staff
+Eisenhower Executive Office Building, 428
+Tuesday, December 8, 2026
+12:00pm-1:00pm: \t\tSample Speaker C, Sample Department (made-up example)
+White House Fellows, White House Fellows Program Staff
+Eisenhower Executive Office Building, 428
+Wednesday, December 9, 2026
+5:00pm-6:00pm: \t\tBusiness Meeting #3
+White House Fellows, White House Fellows Program Staff
+Eisenhower Executive Office Building, 472
+Thursday, December 10, 2026
+12:00pm-1:00pm: \t\tSample Speaker D, Sample Institute (made-up example)
+White House Fellows, White House Fellows Program Staff
+Eisenhower Executive Office Building, 428`;
+function sampleNovUpdate() {
+  return SCHEDULE_TEXT.trim()
+    .replace("2:00pm-3:00pm: \tSuperintendent", "3:00pm-4:00pm: \tSuperintendent")
+    .replace(/800 17th Street/, "Eisenhower Executive Office Building, 428")
+    .replace(/9:00pm-11:00pm:[\s\S]*$/, "")
+    .trim() + "\nTuesday, November 24, 2026\n12:00pm-1:00pm: \t\tSample Speaker E, Sample Agency (made-up example)\nWhite House Fellows, White House Fellows Program Staff\nEisenhower Executive Office Building, 428";
+}
+const tkey = (e) => e.title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().slice(0, 28);
+function diffSchedule(found) {
+  const months = new Set(found.map((e) => e.date.slice(0, 7)));
+  const pool = EVENTS.filter((e) => !e.canceled && months.has(e.date.slice(0, 7)));
+  const used = new Set(), added = [], changed = [], same = [];
+  for (const n of found) {
+    const m = pool.find((e) => !used.has(e.id) && tkey(e) === tkey(n));
+    if (!m) { added.push(n); continue; }
+    used.add(m.id);
+    const what = [];
+    if (m.date !== n.date) what.push(`moved ${fmtD(m.date).slice(5)} → ${fmtD(n.date).slice(5)}`);
+    if (m.start !== n.start || m.end !== n.end) what.push(`time ${when(m)} → ${when(n)}`);
+    if ((m.location || "") !== (n.location || "")) what.push(`room → ${n.location || "none"}`);
+    if (what.length) changed.push({ old: m, n, what }); else same.push(m);
+  }
+  const removed = pool.filter((e) => !used.has(e.id));
+  return { added, changed, removed, same, months: [...months] };
+}
+let pasteText = "", pasteDiff = null, pasteSample = "";
+function sheetPaste() {
+  return `<div class="grab"></div><div class="top"><h2>Schedule changes</h2><button class="x" data-act="close" aria-label="Close">×</button></div>
+    <p class="note" style="margin:6px 0 10px">Paste the schedule exactly as staff send it, for a new month or an updated one. You'll see what's new or changed before anything is saved.</p>
+    <textarea class="f" id="paste-text" placeholder="Tuesday, December 1, 2026&#10;12:00pm-1:00pm:  Speaker name, Organization&#10;Eisenhower Executive Office Building, 428">${esc(pasteText)}</textarea>
+    ${pasteSample ? `<p class="note">${pasteSample === "dec" ? "Made-up December schedule for testing." : "Your November schedule with a few made-up changes: one time moved, one room changed, the bowling night dropped, one talk added."}</p>` : ""}
+    <div style="margin-top:10px"><button class="ghost" data-act="read">Check for changes</button></div>
+    <div id="paste-out">${pasteDiffHtml()}</div>`;
+}
+function pasteDiffHtml() {
+  if (!pasteDiff) return "";
+  const { added, changed, removed, same } = pasteDiff;
+  if (!added.length && !changed.length && !removed.length) return `<p class="note" style="margin-top:12px">No changes. All ${same.length} events already match the calendar.</p>`;
+  const line = (title, sub, tag, cls) => `<div class="whorow"><span class="nm"><b style="font-size:14px">${title}</b><small>${sub}</small></span><span class="tag ${cls}">${tag}</span></div>`;
+  return `<div class="diff" style="margin-top:14px">
+    ${added.map((e) => line(`${fmtD(e.date)} · ${when(e)}`, esc(e.title), "New", "ok")).join("")}
+    ${changed.map((c) => line(`${fmtD(c.n.date)} · ${esc(c.n.title.slice(0, 60))}`, esc(c.what.join(" · ")), "Changed", "n")).join("")}
+    ${removed.map((e) => line(`${fmtD(e.date)} · ${when(e)}`, esc(e.title) + " — not in the new schedule", "Dropped", "out")).join("")}
+    ${same.length ? `<p class="note" style="margin:2px 0 0">${same.length} other event${same.length === 1 ? "" : "s"} unchanged.</p>` : ""}</div>
+    ${removed.length ? `<p class="note" style="margin:-6px 0 10px">Dropped events will be marked canceled. Absences on them stop counting.</p>` : ""}
+    <button class="cta" data-act="applypaste">Update calendar</button>`;
+}
+/* ---------- Update Schedule tab */
+let upMonth = null;
+function vUpdate() {
+  const months = [...new Set(sorted().map((e) => e.date.slice(0, 7)))];
+  if (!upMonth || !months.includes(upMonth)) upMonth = months.includes(NOW.slice(0, 7)) ? NOW.slice(0, 7) : months[0];
+  const evs = sorted().filter((e) => e.date.startsWith(upMonth));
+  const schedLog = LOG.filter((l) => /schedule|event|canceled|restored|added|moved|edited/i.test(l.text) && !/will miss|absence|marked/i.test(l.text));
+  return `
+    <section class="panel" style="padding:16px;margin-top:16px">
+      <h2 style="font-size:19px">Upload or paste the schedule</h2>
+      <p class="note" style="margin:4px 0 12px">Upload the Word document staff send each month (new or updated). You'll see exactly what's new, changed or dropped before anything is saved.</p>
+      <label class="cta" style="position:relative;display:grid;place-items:center">Choose document (.docx)<input type="file" id="up-doc" accept=".docx,.txt,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" style="position:absolute;inset:0;opacity:0;cursor:pointer"></label>
+      <p class="note" id="up-msg" role="status">${esc(upMsg)}</p>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:4px"><button class="linkbtn" data-act="paste">Paste text instead</button><button class="linkbtn" data-act="sample" data-v="nov">Try an updated November</button><button class="linkbtn" data-act="sample" data-v="dec">Try a sample December</button></div>
+    </section>
+    <section style="margin-top:22px">
+      <div class="monthbar" style="margin-top:0"><h2>Change a date</h2>
+        <select class="f" id="up-month" style="width:auto;min-height:40px" aria-label="Month">${months.map((m) => `<option value="${m}" ${m === upMonth ? "selected" : ""}>${MONTHNAME[+m.slice(5) - 1]} ${m.slice(0, 4)}</option>`).join("")}</select></div>
+      <div class="list" style="margin:8px 0 10px">${evs.map((e) => { const d = dObj(e.date); return `<button class="ev ${e.canceled ? "canceled" : ""}" data-act="edit" data-e="${e.id}">
+        <span class="datechip"><span>${WD[d.getUTCDay()]}</span><b>${d.getUTCDate()}</b></span>
+        <span style="min-width:0"><span class="t">${esc(e.title)}</span><span class="m">${when(e)}${e.location ? " · " + esc(shortLoc(e.location)) : ""}</span></span>
+        <span class="tag ${e.canceled ? "q" : "n"}">${e.canceled ? "Canceled" : "Edit"}</span></button>`; }).join("") || `<p class="note">No events this month.</p>`}</div>
+      <button class="ghost" data-act="newevent">+ Add one event</button>
+    </section>
+    <section style="margin-top:22px">
+      <h2 style="font-size:19px">Share the calendar</h2>
+      <p class="note" style="margin:4px 0 10px">Download a calendar file that opens in Outlook, Google Calendar or Apple Calendar. Canceled events are left out.</p>
+      <button class="ghost" data-act="ics">Download calendar file</button>
+    </section>
+    <section class="updates" style="margin:22px 0 40px"><h3>Recent schedule changes</h3>
+      ${schedLog.slice(0, 6).map((l) => `<div class="upd"><span>${esc(l.text)}</span><small>${ago(l.at)}</small></div>`).join("") || `<p class="note">No changes yet.</p>`}</section>`;
+}
+let upMsg = "";
+
+/* read a .docx in the browser (no upload to any server) */
+async function readZipEntry(buf, wanted) {
+  const v = new DataView(buf); let eocd = -1;
+  for (let i = buf.byteLength - 22; i >= Math.max(0, buf.byteLength - 70000); i--) if (v.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  if (eocd < 0) throw new Error("not a zip");
+  const count = v.getUint16(eocd + 10, true); let p = v.getUint32(eocd + 16, true);
+  for (let n = 0; n < count; n++) {
+    if (v.getUint32(p, true) !== 0x02014b50) break;
+    const method = v.getUint16(p + 10, true), csize = v.getUint32(p + 20, true), nlen = v.getUint16(p + 28, true), elen = v.getUint16(p + 30, true), clen = v.getUint16(p + 32, true), loff = v.getUint32(p + 42, true);
+    const name = new TextDecoder().decode(new Uint8Array(buf, p + 46, nlen));
+    if (name === wanted) {
+      const start = loff + 30 + v.getUint16(loff + 26, true) + v.getUint16(loff + 28, true);
+      const data = new Uint8Array(buf, start, csize);
+      if (method === 0) return new TextDecoder().decode(data);
+      const ds = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+      return await new Response(ds).text();
+    }
+    p += 46 + nlen + elen + clen;
+  }
+  throw new Error("no document");
+}
+async function docxToText(file) {
+  const xml = await readZipEntry(await file.arrayBuffer(), "word/document.xml");
+  const doc = new DOMParser().parseFromString(xml, "application/xml");
+  const W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+  const lines = [];
+  for (const para of doc.getElementsByTagNameNS(W, "p")) {
+    let t = "";
+    const walk = (node) => { for (const c of node.childNodes) { if (c.namespaceURI === W && c.localName === "t") t += c.textContent; else if (c.namespaceURI === W && c.localName === "tab") t += "\t"; else if (c.namespaceURI === W && c.localName === "br") t += "\n"; else if (c.nodeType === 1 && c.localName !== "p") walk(c); } };
+    walk(para); lines.push(t);
+  }
+  return lines.join("\n");
+}
+
+/* edit / add a single event */
+function sheetEdit() {
+  const e = sheet.id ? EVENTS.find((x) => x.id === sheet.id) : null;
+  const v = e || { date: NOW.slice(0, 10), start: "12:00", end: "13:00", title: "", location: "Eisenhower Executive Office Building, 428", roles: [], optional: false };
+  const pres = (v.roles.find(([r]) => /presiding/i.test(r)) || [])[1] || "";
+  return `<div class="grab"></div><div class="top"><h2>${e ? "Edit event" : "Add one event"}</h2><button class="x" data-act="close" aria-label="Close">×</button></div>
+    ${e && e.canceled ? `<div class="status ok" style="background:var(--bg);color:var(--muted)"><b>This event is canceled</b><button data-act="restore" data-e="${e.id}">Restore</button></div>` : ""}
+    <label class="label" for="ed-title">Speaker or event</label><input class="f" id="ed-title" value="${esc(v.title)}" maxlength="200">
+    <div style="display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:8px;margin-top:4px">
+      <span><label class="label" for="ed-date">Date</label><input class="f" type="date" id="ed-date" value="${v.date}"></span>
+      <span><label class="label" for="ed-start">Starts</label><input class="f" type="time" id="ed-start" value="${v.start || ""}"></span>
+      <span><label class="label" for="ed-end">Ends</label><input class="f" type="time" id="ed-end" value="${v.end || ""}"></span></div>
+    <label class="label" for="ed-loc">Room</label><input class="f" id="ed-loc" value="${esc(v.location || "")}" maxlength="140">
+    <label class="label" for="ed-pres">Presiding Fellow (optional)</label><input class="f" id="ed-pres" value="${esc(pres)}" maxlength="80">
+    <label style="display:flex;gap:10px;align-items:center;margin:12px 0;font-size:15px"><input type="checkbox" id="ed-opt" ${v.optional ? "checked" : ""} style="width:20px;height:20px"> Optional (doesn't count toward absences)</label>
+    <p class="note" id="ed-msg" role="status"></p>
+    <button class="cta" data-act="saveevent">${e ? "Save changes" : "Add event"}</button>
+    ${e && !e.canceled ? `<button class="ghost" style="margin-top:8px;color:var(--out)" data-act="cancelevent" data-e="${e.id}">Cancel this event</button>` : ""}`;
+}
+
+/* .ics download (times converted from Eastern) */
+function etToUtc(date, time) {
+  const [y, mo, d] = date.split("-").map(Number), [h, mi] = (time || "00:00").split(":").map(Number);
+  const wall = Date.UTC(y, mo - 1, d, h, mi);
+  const off = (ms) => { const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).formatToParts(new Date(ms)).map((x) => [x.type, x.value])); return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute) - ms; };
+  let g = wall - off(wall); g = wall - off(g); return new Date(g);
+}
+const icsStamp = (dt) => dt.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+const icsEsc = (t) => String(t || "").replace(/\\/g, "\\\\").replace(/;/g, "\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+function buildIcs() {
+  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Fellows Attendance//Speaker Series//EN", "CALSCALE:GREGORIAN", "X-WR-CALNAME:Speaker Series"];
+  for (const e of sorted().filter((x) => !x.canceled)) {
+    lines.push("BEGIN:VEVENT", `UID:${e.date}-${tkey(e).replace(/\s/g, "-")}@fellows-attendance`, `DTSTAMP:${icsStamp(new Date())}`);
+    if (e.allDay) { const nd = new Date(Date.UTC(+e.date.slice(0, 4), +e.date.slice(5, 7) - 1, +e.date.slice(8) + 1)); lines.push(`DTSTART;VALUE=DATE:${e.date.replace(/-/g, "")}`, `DTEND;VALUE=DATE:${nd.toISOString().slice(0, 10).replace(/-/g, "")}`); }
+    else lines.push(`DTSTART:${icsStamp(etToUtc(e.date, e.start))}`, `DTEND:${icsStamp(etToUtc(e.date, e.end || e.start))}`);
+    lines.push(`SUMMARY:${icsEsc(e.title)}`);
+    if (e.location) lines.push(`LOCATION:${icsEsc(e.location)}`);
+    if (e.roles.length) lines.push(`DESCRIPTION:${icsEsc(e.roles.map(([r, n]) => r + ": " + n).join("\n"))}`);
+    lines.push("END:VEVENT");
+  }
+  lines.push("END:VCALENDAR");
+  return lines.join("\r\n") + "\r\n";
+}
+
+let folder = null; // [{file, url, name}]
+function nameFromFile(fn) {
+  let n = fn.replace(/\.[^.]+$/, "").replace(/[_\-.]+/g, " ").replace(/\s+/g, " ").trim();
+  if (/,/.test(n)) { const [last, first] = n.split(",").map((x) => x.trim()); if (first) n = first + " " + last; }
+  return n.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+function sheetRoster() {
+  const ro = !(db && canEdit);
+  const intro = !db ? "Open this page signed in to claude.ai to save names and photos." : !canEdit ? "Only the owner and editors can change these." : "Add each Fellow's name and photo, with their permission. Saved for everyone who opens this preview.";
+  if (folder) {
+    return `<div class="grab"></div><div class="top"><h2>From your folder</h2><button class="x" data-act="close" aria-label="Close">×</button></div>
+      <p class="note" style="margin:6px 0 12px">Found ${folder.length} photo${folder.length === 1 ? "" : "s"}. Names come from the file names. Check them, fix any spelling, then save.</p>
+      <div class="who">${folder.map((x, i) => `<div class="whorow"><img class="av lg" src="${x.url}" alt=""><span class="nm"><input class="f" id="fold-${i}" value="${esc(x.name)}" aria-label="Name for photo ${i + 1}"><small>${esc(x.file.name)}${i >= FELLOWS.length ? " · more than 11 photos, this one is skipped" : ` · goes to ${FELLOWS[i].base}`}</small></span></div>`).join("")}</div>
+      <p class="note" id="fold-msg" role="status">${esc(folderMsg)}</p>
+      <div style="display:flex;gap:8px"><button class="ghost" data-act="foldercancel">Cancel</button><button class="cta" data-act="foldersave" ${ro || folderBusy ? "disabled" : ""}>${folderBusy ? "Saving…" : `Save ${Math.min(folder.length, FELLOWS.length)} Fellows`}</button></div>`;
+  }
+  return `<div class="grab"></div><div class="top"><h2>Names &amp; photos</h2><button class="x" data-act="close" aria-label="Close">×</button></div>
+    <p class="note" style="margin:6px 0 12px">${intro}</p>
+    ${ro || !assetsCap ? "" : `<div class="panel" style="padding:12px 14px;margin-bottom:14px;display:flex;gap:12px;align-items:center">${brand.logo ? `<img src="/_blob/${esc(brand.logo)}" alt="" style="width:48px;height:48px;object-fit:contain">` : ""}<div style="flex:1;min-width:0"><b>Program logo</b><p class="note" style="margin:2px 0 0">Shown in the top corner. ${esc(logoMsg)}</p></div>
+      <label class="ghost" style="position:relative;display:inline-grid;place-items:center;width:auto;padding:0 14px;min-height:40px">${brand.logo ? "Replace" : "Add logo"}<input type="file" id="pick-logo" accept="image/png,image/jpeg,image/webp,image/svg+xml" style="position:absolute;inset:0;opacity:0"></label>
+      ${brand.logo ? `<button class="ghost" style="width:auto;padding:0 12px;min-height:40px" data-act="rmlogo">Remove</button>` : ""}</div>`}
+    ${ro ? "" : `<div class="panel" style="padding:12px 14px;margin-bottom:14px"><b>Use your Fellows folder</b><p class="note" style="margin:2px 0 10px">Choose the folder on your computer that has one photo per Fellow, named like <i>Jane Smith.jpg</i>. Photos go straight from your computer to this page.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><label class="ghost" style="position:relative;display:inline-grid;place-items:center;width:auto;padding:0 16px">Choose folder<input type="file" id="pick-folder" webkitdirectory directory multiple style="position:absolute;inset:0;opacity:0"></label>
+      <label class="ghost" style="position:relative;display:inline-grid;place-items:center;width:auto;padding:0 16px">Choose photos<input type="file" id="pick-files" accept="image/*" multiple style="position:absolute;inset:0;opacity:0"></label></div></div>`}
+    ${live && canEdit ? `<div class="panel" style="padding:10px 14px;margin-bottom:14px"><b>Linked accounts</b><p class="note" style="margin:2px 0 8px">Who picked which name. Remove a wrong link and that person can pick again.</p>
+      ${Object.entries(claims).map(([u, c]) => `<div class="whorow" style="font-size:14px"><span class="nm">${esc((fx(c.fid) || {}).name || "?")} <small>${esc(names[u] || "Someone")}</small></span><button data-act="unclaim" data-u="${esc(u)}">Remove link</button></div>`).join("") || `<p class="note">No one has linked yet.</p>`}</div>` : ""}
+    <div class="who">${FELLOWS.map((f) => `<div class="whorow">${av(f, "lg")}<span class="nm"><input class="f" id="nm-${f.id}" value="${esc((roster[f.id] || {}).name || "")}" placeholder="${f.base}" maxlength="80" aria-label="Name for ${f.base}" ${ro ? "disabled" : ""}><small id="msg-${f.id}">${esc(rmsg[f.id] || "")}</small></span>
+      ${ro ? "" : `<span style="display:grid;gap:4px">${assetsCap ? `<label class="whorow" style="position:relative"><button type="button" style="pointer-events:none">${f.photo ? "New photo" : "Photo"}</button><input type="file" accept="image/*" data-photo="${f.id}" aria-label="Photo for ${f.base}" style="position:absolute;inset:0;opacity:0"></label>` : ""}<button data-act="savename" data-f="${f.id}">Save</button></span>`}</div>`).join("")}</div>`;
+}
+let folderMsg = "", folderBusy = false, logoMsg = "";
+let rmsg = {};
+
+/* ---------- feedback (saved, so Claude can read it) */
+let db = null, userCap = null, assetsCap = null, dl = null, myId = null, isOwner = false, canEdit = false, notes = [], fbState = "loading", names = {};
+const SCREENS = { cal: "Calendar", report: "Report", update: "Edit Schedule", event: "Event card", paste: "Schedule changes", edit: "Edit an event", roster: "Names & photos" };
+const curKey = () => sheet ? (sheet.type === "event" ? "event" : sheet.type) : tab;
+function sheetFeedback() {
+  const k = fbFor; const list = notes.filter((n) => n.screen === k);
+  return `<div class="grab"></div><div class="top"><div><span class="eyebrow">Feedback on</span><h2>${esc(SCREENS[k] || k)}</h2></div><button class="x" data-act="close" aria-label="Close">×</button></div>
+    <p class="note" style="margin:6px 0 10px">What should change? Rough notes are fine. Claude reads these and updates the design.</p>
+    <label class="label" for="fb-on">About</label><select class="f" id="fb-on">${Object.entries(SCREENS).map(([v, l]) => `<option value="${v}" ${v === k ? "selected" : ""}>${l}</option>`).join("")}</select>
+    <textarea class="f" id="fb-text" style="margin-top:8px;min-height:100px" placeholder="e.g. Make the speaker name bigger"></textarea>
+    <div style="margin-top:8px;display:flex;gap:10px;align-items:center"><button class="cta" style="width:auto;padding:0 22px;min-height:46px;font-size:15px" data-act="savefb" ${db ? "" : "disabled"}>Send feedback</button><span id="fb-status" class="note" role="status" style="margin:0">${db ? esc(fbMsg) : fbState === "loading" ? "Connecting…" : "Feedback can be saved only when signed in to claude.ai."}</span></div>
+    <div class="drawer" style="display:grid;gap:8px;margin-top:14px">${list.map((n) => `<div class="item"><span style="white-space:pre-wrap">${esc(n.text)}</span><small>${esc(names[n.by] || "Someone")} · ${n.at ? new Date(n.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : ""}${n.resolved ? " · done" : ""}</small>${db && (isOwner || n.by === myId) ? `<span class="a"><button data-act="fbdone" data-n="${n.id}" data-v="${n.resolved ? 0 : 1}">${n.resolved ? "Reopen" : "Mark done"}</button><button data-act="fbdel" data-n="${n.id}">Delete</button></span>` : ""}</div>`).join("")}</div>
+    <p class="note">${notes.length} feedback note${notes.length === 1 ? "" : "s"} in total.</p>`;
+}
+let fbFor = "cal", fbMsg = "";
+async function initCaps() {
+  try {
+    if (!(window.claude && window.claude.use)) { fbState = "off"; return paint(); }
+    db = await window.claude.use("db"); userCap = await window.claude.use("user"); assetsCap = await window.claude.use("assets"); dl = await window.claude.use("downloads");
+    if (!db) { fbState = "off"; return paint(); }
+    if (userCap) { myId = await userCap.id(); isOwner = await userCap.isOwner(); canEdit = !!(await userCap.canEdit()); }
+    const timer = setTimeout(() => { if (fbState === "loading") { fbState = "slow"; paint(); } }, 10000);
+    db.collection("feedback").orderBy("at", "desc").onSnapshot((s) => { clearTimeout(timer); fbState = "ready"; notes = s.docs.map((d) => ({ id: d.id, ...d.data() })); paint(); names_(); }, () => { fbState = "off"; paint(); });
+    live = true; AS = canEdit ? "staff" : "none";
+    db.collection("claims").onSnapshot((s) => { claims = {}; s.docs.forEach((d) => (claims[d.id] = d.data())); names_(); render(); }, () => {});
+    db.collection("absences").onSnapshot((s) => { absDocs = {}; s.docs.forEach((d) => (absDocs[d.id] = d.data())); render(); }, () => {});
+    db.collection("staffabs").onSnapshot((s) => { staffAbs = {}; s.docs.forEach((d) => (staffAbs[d.id] = d.data())); render(); }, () => {});
+    db.collection("schedule").onSnapshot((s) => {
+      const d = s.docs.find((x) => x.id === "main");
+      if (d && d.data().events) { EVENTS = d.data().events; SCHED_LOG = d.data().log || []; }
+      else if (canEdit && !schedLoaded) saveSchedule(); // first staff visit stores the starting schedule
+      schedLoaded = true; render();
+    }, () => {});
+    db.collection("brand").onSnapshot((s) => { const d = s.docs.find((x) => x.id === "main"); brand = d ? d.data() : {}; render(); }, () => {});
+    db.collection("roster").onSnapshot((s) => { roster = {}; s.docs.forEach((d) => (roster[d.id] = d.data())); render(); }, () => {});
+    paint();
+  } catch { fbState = "off"; paint(); }
+}
+async function names_() {
+  if (!userCap) return; const ids = [...new Set(notes.map((n) => n.by).concat(Object.keys(claims)).filter(Boolean))]; if (!ids.length) return;
+  try { const ps = await userCap.profiles(ids); ids.forEach((i) => (names[i] = (ps[i] && ps[i].name) || (i === myId ? "You" : "Someone"))); } catch {} paint();
+}
+function paint() { if (sheet && sheet.type === "roster") return renderSheet(); document.getElementById("fb-btn").textContent = `Feedback${notes.filter((n) => !n.resolved).length ? " (" + notes.filter((n) => !n.resolved).length + ")" : ""}`; if (sheet && (sheet.type === "feedback" || sheet.type === "roster")) renderSheet(); }
+
+/* ---------- render */
+let lastFellow = "f5", brand = {};
+function render() {
+  applyRoster();
+  const ls = document.getElementById("logo-slot");
+  const want = brand.logo ? `<img src="/_blob/${esc(brand.logo)}" alt="Program logo">`
+    : isStaff() && db && canEdit && assetsCap ? `<label class="addlogo">${logoMsg && /Upload/.test(logoMsg) ? "…" : "+ Add logo"}<input type="file" id="pick-logo" accept="image/png,image/jpeg,image/webp,image/svg+xml" aria-label="Add program logo"></label>` : "";
+  if (ls.innerHTML !== want) ls.innerHTML = want;
+  computeAbs();
+  const editor = isEditor();
+  if (!editor) AS = myClaim() || "none";
+  document.getElementById("who-pick").hidden = !editor;
+  document.getElementById("who-fixed").hidden = editor || AS === "none";
+  if (!editor && AS !== "none") document.getElementById("who-name").textContent = fx(AS).name;
+  if (live && !editor && AS === "none") { document.getElementById("tabs").hidden = true; document.getElementById("view").innerHTML = vClaim(); renderSheet(); paint(); return; }
+  const sel = document.getElementById("as-sel");
+  sel.innerHTML = `<option value="staff">Program staff</option><optgroup label="Fellows">${FELLOWS.slice().sort((a, b) => a.name.localeCompare(b.name)).map((f) => `<option value="${f.id}">${esc(f.name)}</option>`).join("")}</optgroup>`;
+  sel.value = AS;
+  const tabs = document.getElementById("tabs"); tabs.hidden = !isStaff();
+  if (!isStaff()) tab = "cal";
+  tabs.querySelectorAll("button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.v === tab)));
+  document.getElementById("view").innerHTML = tab === "report" ? vReport() : tab === "update" ? vUpdate() : vCalendar();
+  document.getElementById("backup-slot").innerHTML = live && canEdit ? `<button class="linkbtn" data-act="backup">Download backup</button>` : "";
+  document.getElementById("conn").innerHTML = live ? "" : `<b style="color:var(--out)">Not connected: changes aren't shared.</b> `;
+  renderSheet(); paint();
+}
+function renderSheet() {
+  const layer = document.getElementById("layer");
+  if (!sheet) { layer.innerHTML = ""; return; }
+  const draft = document.getElementById("fb-text")?.value;
+  const html = sheet.type === "daypick" ? `<div class="grab"></div><div class="top"><h2>${fmtLong(sheet.d)}</h2><button class="x" data-act="close" aria-label="Close">×</button></div>
+      <p class="note" style="margin:4px 0 10px">${EVENTS.filter((x) => x.date === sheet.d).length} events this day. Pick one.</p>
+      <div class="list" style="margin:0">${sorted().filter((x) => x.date === sheet.d).map(row).join("")}</div>` : sheet.type === "event" ? sheetEvent(EVENTS.find((e) => e.id === sheet.id)) : sheet.type === "edit" ? sheetEdit() : sheet.type === "paste" ? sheetPaste() : sheet.type === "roster" ? sheetRoster() : sheetFeedback();
+  layer.innerHTML = `<div class="scrim" data-act="scrim"><div class="sheet" role="dialog" aria-modal="true">${html}</div></div>`;
+  if (draft && document.getElementById("fb-text")) document.getElementById("fb-text").value = draft;
+}
+const confirm2 = () => true; // the viewer frame blocks confirm(); claims can be undone by staff
+let toastT;
+function toast(msg, undo) {
+  const el = document.getElementById("toast");
+  el.innerHTML = `<div class="toast" role="status"><span style="flex:1">${esc(msg)}</span>${undo ? `<button data-act="toastundo">Undo</button>` : ""}</div>`;
+  window._undo = undo; clearTimeout(toastT); toastT = setTimeout(() => (el.innerHTML = ""), 6000);
+}
+async function squareJpeg(file) {
+  const url = URL.createObjectURL(file);
+  try { const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("bad image")); i.src = url; });
+    const s = Math.min(img.naturalWidth, img.naturalHeight), o = Math.min(512, s); const c = document.createElement("canvas"); c.width = o; c.height = o;
+    c.getContext("2d").drawImage(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s, 0, 0, o, o);
+    return await new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error("encode"))), "image/jpeg", 0.86)); } finally { URL.revokeObjectURL(url); }
+}
+const saveRoster = (fid, patch) => { const c = roster[fid] || {}; return db.doc("roster/" + fid).set({ name: c.name || "", agency: c.agency || "", photo: c.photo || null, ...patch, at: new Date().toISOString() }); };
+function reportRows() {
+  const evs = sorted().filter((e) => (rMonth === "all" || e.date.startsWith(rMonth)) && !e.optional && isPast(e));
+  return FELLOWS.map((f) => ({ f, missed: evs.filter((e) => absent(f.id, e)) }));
+}
+
+/* ---------- actions */
+document.addEventListener("click", async (ev) => {
+  const t = ev.target.closest("[data-act]"); if (!t) return;
+  const d = t.dataset, E = d.e ? EVENTS.find((x) => x.id === d.e) : null;
+  switch (d.act) {
+    case "tab": tab = d.v; sheet = null; render(); break;
+    case "role": AS = d.v === "staff" ? "staff" : lastFellow; tab = "cal"; sheet = null; selDay = null; rFellow = ""; render(); window.scrollTo(0, 0); break;
+    case "month": { const [y, m] = month.split("-").map(Number); const n = new Date(Date.UTC(y, m - 1 + Number(d.v), 1)); month = `${n.getUTCFullYear()}-${pad2(n.getUTCMonth() + 1)}`; selDay = null; render(); break; }
+    case "day": {
+      if (!d.d) { selDay = null; render(); break; }
+      const on = EVENTS.filter((x) => x.date === d.d && !x.canceled);
+      if (on.length === 1) { sheet = { type: "event", id: on[0].id }; draftReason = null; draftNote = ""; changing = false; renderSheet(); }
+      else { sheet = { type: "daypick", d: d.d }; renderSheet(); }
+      break; }
+    case "open": sheet = { type: "event", id: d.e }; draftReason = null; draftNote = ""; changing = false; renderSheet(); break;
+    case "change": changing = true; draftReason = (ABS[AS + "|" + sheet.id] || {}).reason || null; draftNote = (ABS[AS + "|" + sheet.id] || {}).note || ""; renderSheet(); break;
+    case "close": sheet = null; folder = null; renderSheet(); break;
+    case "scrim": if (ev.target === t) { sheet = null; renderSheet(); } break;
+    case "reason": draftReason = d.r; draftNote = document.getElementById("ab-note")?.value || draftNote; renderSheet(); break;
+    case "miss": { if (!draftReason) return; const note = (document.getElementById("ab-note")?.value || "").trim(); const was = changing, reason = draftReason, fid = AS; changing = false; sheet = null;
+      if (await putEntry(fid, E.id, { kind: "absent", reason, note })) toast(was ? `Reason updated: ${reason}` : `Saved: you'll miss ${fmtD(E.date)} (${reason})`, () => putEntry(fid, E.id, { kind: "removed" })); break; }
+    case "undo": { const prev = ABS[AS + "|" + E.id], fid = AS; if (await putEntry(fid, E.id, { kind: "removed" })) toast("Absence removed", () => prev && putEntry(fid, E.id, { kind: "absent", reason: prev.reason, note: prev.note })); break; }
+    case "staffundo": { const prev = ABS[d.f + "|" + E.id], f = d.f; if (await putEntry(f, E.id, { kind: isPast(E) ? "attended" : "removed" })) toast(`${fx(f).name}: ${isPast(E) ? "marked as attended" : "absence removed"}`, () => prev && putEntry(f, E.id, { kind: "absent", reason: prev.reason, note: prev.note })); break; }
+    case "staffadd": { const f = document.getElementById("add-f").value; if (!f) return; const reason = document.getElementById("add-r").value || "Not given"; if (await putEntry(f, E.id, { kind: "absent", reason, note: "" })) toast(`${fx(f).name} marked ${isPast(E) ? "absent" : "out"}`, () => putEntry(f, E.id, { kind: "removed" })); break; }
+    case "period": rMonth = d.v === "all" ? "all" : (monthsWithEvents().filter((m) => m <= NOW.slice(0, 7)).pop() || monthsWithEvents()[0]); render(); break;
+    case "edit": sheet = { type: "edit", id: d.e }; renderSheet(); break;
+    case "newevent": sheet = { type: "edit", id: null }; renderSheet(); break;
+    case "saveevent": {
+      const g = (i) => document.getElementById(i).value.trim();
+      const title = g("ed-title"), date = g("ed-date"), start = g("ed-start"), end = g("ed-end"), loc = g("ed-loc"), pres = g("ed-pres"), opt = document.getElementById("ed-opt").checked;
+      const msg = document.getElementById("ed-msg");
+      if (!title || !date || !start) { msg.textContent = "Add a speaker or event name, a date and a start time."; return; }
+      if (end && end <= start) { msg.textContent = "The end time must be after the start time."; return; }
+      const roles = pres ? [["Presiding Fellow", pres]] : [];
+      if (sheet.id) {
+        const e = EVENTS.find((x) => x.id === sheet.id); const what = [];
+        if (e.date !== date) what.push(`moved to ${fmtD(date).slice(5)}`); if (e.start !== start || e.end !== end) what.push("new time");
+        if ((e.location || "") !== loc) what.push("new room"); if (e.title !== title) what.push("renamed");
+        Object.assign(e, { title, date, start, end: end || start, location: loc, optional: opt, allDay: false, endDate: null, roles: roles.length ? roles : e.roles.filter(([r]) => !/presiding/i.test(r)) });
+        logIt(`Program staff edited ${fmtD(date).slice(5)}: ${title.slice(0, 50)}${what.length ? " (" + what.join(", ") + ")" : ""}`);
+        toast("Event updated");
+      } else {
+        EVENTS.push({ id: "n" + hash(date + title + Date.now()), title, date, endDate: null, allDay: false, start, end: end || start, location: loc, roles, audience: "", kind: /business meeting/i.test(title) ? "Business meeting" : "Speaker Series", optional: opt, key: date + "|" + start + "|" + title.toLowerCase().slice(0, 40) });
+        logIt(`Program staff added ${fmtD(date).slice(5)}: ${title.slice(0, 50)}`); toast("Event added");
+      }
+      upMonth = date.slice(0, 7); sheet = null; render(); saveSchedule(); break; }
+    case "cancelevent": { const e = EVENTS.find((x) => x.id === d.e); e.canceled = true; logIt(`Program staff canceled ${fmtD(e.date).slice(5)}: ${e.title.slice(0, 50)}`); sheet = null; render(); saveSchedule(); toast("Event canceled. Absences on it no longer count.", () => { e.canceled = false; render(); saveSchedule(); }); break; }
+    case "restore": { const e = EVENTS.find((x) => x.id === d.e); e.canceled = false; logIt(`Program staff restored ${fmtD(e.date).slice(5)}: ${e.title.slice(0, 50)}`); sheet = null; render(); saveSchedule(); toast("Event restored"); break; }
+    case "ics": {
+      if (!dl) { toast("Download isn't available in this view."); break; }
+      try { await dl.save({ filename: "speaker-series.ics", data: new Blob([buildIcs()], { type: "text/calendar" }) }); } catch { toast("Download canceled."); }
+      break; }
+    case "moreupd": showAllUpd = !showAllUpd; render(); break;
+    case "rmode": rMode = d.v; rFellow = ""; render(); break;
+    case "claim": {
+      const f = fx(d.f); if (!confirm2(`You are ${f.name}?`)) break;
+      claims[myId] = { fid: d.f, at: NOW }; render();
+      try { await db.doc("claims/" + myId).set({ fid: d.f, at: NOW }); toast(`Welcome, ${f.name}!`); } catch { delete claims[myId]; render(); toast("Couldn't save. Try again."); }
+      break; }
+    case "unclaim": { const uid = d.u; const prev = claims[uid]; delete claims[uid]; renderSheet(); render(); try { await db.doc("claims/" + uid).delete(); toast("Link removed. They can pick their name again."); } catch { claims[uid] = prev; renderSheet(); toast("Couldn't remove the link."); } break; }
+    case "backup": {
+      const data = { exportedAt: new Date().toISOString(), schedule: { events: EVENTS, log: SCHED_LOG }, absences: absDocs, staffAbsences: staffAbs, claims, roster, brand };
+      if (!dl) { toast("Download isn't available here."); break; }
+      try { await dl.save({ filename: `attendance-backup-${NOW.slice(0, 10)}.json`, data: new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }) }); } catch { toast("Download canceled."); }
+      break; }
+    case "pickfellow": rFellow = d.f || ""; render(); window.scrollTo(0, 0); break;
+    case "rmlogo": { const old = brand.logo; try { await db.doc("brand/main").set({ logo: null, at: new Date().toISOString() }); if (old) assetsCap.delete(old).catch(() => {}); logoMsg = "Logo removed"; } catch { logoMsg = "Couldn't remove it."; } renderSheet(); break; }
+    case "foldercancel": folder = null; renderSheet(); break;
+    case "foldersave": {
+      if (!db || !canEdit) return;
+      folder.forEach((x, i) => { const el = document.getElementById("fold-" + i); if (el) x.name = el.value.trim(); });
+      folderBusy = true; let ok = 0, failed = 0;
+      for (let i = 0; i < Math.min(folder.length, FELLOWS.length); i++) {
+        const x = folder[i], fid = FELLOWS[i].id; folderMsg = `Saving ${i + 1} of ${Math.min(folder.length, FELLOWS.length)}…`; renderSheet();
+        try {
+          let photo = (roster[fid] || {}).photo || null;
+          if (assetsCap) { const up = await assetsCap.upload(await squareJpeg(x.file)); if (photo) assetsCap.delete(photo).catch(() => {}); photo = up.id; }
+          await saveRoster(fid, { name: x.name, photo }); ok++;
+        } catch { failed++; }
+      }
+      folderBusy = false; folder = null; folderMsg = ""; renderSheet();
+      toast(failed ? `${ok} saved, ${failed} couldn't be saved. Try those again.` : `${ok} Fellows saved with names and photos.`);
+      break; }
+    case "roster": sheet = { type: "roster" }; renderSheet(); break;
+    case "paste": pasteText = ""; pasteDiff = null; pasteSample = ""; sheet = { type: "paste" }; renderSheet(); break;
+    case "sample": pasteSample = d.v; pasteText = d.v === "dec" ? SAMPLE_DEC : sampleNovUpdate(); pasteDiff = diffSchedule(parseSchedule(pasteText)); sheet = { type: "paste" }; renderSheet(); break;
+    case "read": pasteText = document.getElementById("paste-text").value; { const found = parseSchedule(pasteText); if (!found.length) { toast("No events found. Check the dates look like “Tuesday, December 1, 2026”."); break; } pasteDiff = diffSchedule(found); } document.getElementById("paste-out").innerHTML = pasteDiffHtml(); break;
+    case "applypaste": {
+      const { added, changed, removed, months } = pasteDiff; const stamp = Date.now();
+      added.forEach((e) => { let id = eidOf(e); while (EVENTS.some((x) => x.id === id)) id += "x"; EVENTS.push({ ...e, id }); });
+      changed.forEach((c) => Object.assign(c.old, { date: c.n.date, endDate: c.n.endDate, start: c.n.start, end: c.n.end, allDay: c.n.allDay, location: c.n.location, roles: c.n.roles }));
+      removed.forEach((e) => (e.canceled = true));
+      const mlabel = months.map((m) => MONTHNAME[+m.slice(5) - 1]).join(", ");
+      logIt(`Program staff updated the ${mlabel} schedule: ${added.length} new, ${changed.length} changed, ${removed.length} dropped`);
+      if (added.length && !months.includes(month)) month = months[0];
+      sheet = null; pasteDiff = null; render(); saveSchedule(); toast(`Calendar updated: ${added.length} new, ${changed.length} changed, ${removed.length} dropped`); break; }
+    case "csv": {
+      const { rows } = reportData(); const q = (x) => `"${String(x).replace(/"/g, '""').replace(/^([=+\-@])/, "'$1")}"`;
+      const list = rFellow ? rows.filter((r) => r.f.id === rFellow) : rows;
+      const ms = rMode === "year" ? monthsWithEvents() : [];
+      const head = ["Fellow", "Missed", "Planned", ...ms.map((m) => MONTHNAME[+m.slice(5) - 1] + " " + m.slice(0, 4)), ...REASONS, "Dates and reasons"];
+      const csv = [head.map(q).join(",")].concat(list.map((r) => { const t = Object.fromEntries(tallyReasons(r.missed)); return [q(r.f.name), r.missed.length, r.planned.length, ...ms.map((m) => r.missed.concat(r.planned).filter((x) => x.e.date.startsWith(m)).length), ...REASONS.map((x) => t[x] || 0), q(r.missed.map((m) => `${m.e.date} ${m.e.title} (${m.reason}${(ABS[r.f.id + "|" + m.e.id] || {}).note ? ": " + ABS[r.f.id + "|" + m.e.id].note : ""})`).join("; "))].join(","); })).join("\r\n") + "\r\n";
+      if (!dl) { toast("Download isn't available in this view. Try “Copy for email”."); break; }
+      try { await dl.save({ filename: `speaker-series-attendance-${periodSlug()}.csv`, data: new Blob([csv], { type: "text/csv" }) }); } catch { toast("Download canceled."); }
+      break; }
+    case "copy": {
+      const { rows } = reportData(); const list = rFellow ? rows.filter((r) => r.f.id === rFellow) : rows;
+      const txt = `Speaker Series attendance, ${periodLabel()}\n\n` + list.map((r) => `${r.f.name}: ${r.missed.length} absence${r.missed.length === 1 ? "" : "s"}${rMonth === "all" && r.missed.length ? " (" + monthsWithEvents().map((m) => mShort(m) + " " + r.missed.filter((x) => x.e.date.startsWith(m)).length).join(", ") + ")" : ""}${r.missed.length ? "\n" + r.missed.map((m) => `  - ${fmtD(m.e.date)}: ${m.e.title} (${m.reason})`).join("\n") : ""}`).join("\n");
+      try { await navigator.clipboard.writeText(txt); toast("Copied. Paste it into an email."); } catch { toast("Couldn't copy here. Try the spreadsheet instead."); }
+      break; }
+    case "toastundo": if (window._undo) window._undo(); document.getElementById("toast").innerHTML = ""; break;
+    case "savefb": {
+      const ta = document.getElementById("fb-text"), st = document.getElementById("fb-status"), text = ta.value.trim();
+      if (!text) { st.textContent = "Write something first."; return; }
+      t.disabled = true; st.textContent = "Sending…";
+      try { await db.collection("feedback").add({ screen: document.getElementById("fb-on").value, kind: "note", text: text.slice(0, 4000), by: myId, at: new Date().toISOString(), resolved: false, design: "simple-v2", viewingAs: AS }); ta.value = ""; fbMsg = "✓ Sent. Thank you."; renderSheet(); }
+      catch { t.disabled = false; st.textContent = "Not sent. Please try again."; }
+      break; }
+    case "fbdone": try { await db.doc("feedback/" + d.n).update({ resolved: d.v === "1" }); } catch {} break;
+    case "fbdel": try { await db.doc("feedback/" + d.n).delete(); } catch {} break;
+    case "savename": { const v = document.getElementById("nm-" + d.f).value.trim(); rmsg[d.f] = "Saving…"; renderSheet();
+      try { await saveRoster(d.f, { name: v }); rmsg[d.f] = "✓ Saved"; } catch { rmsg[d.f] = "Not saved"; } renderSheet(); break; }
+  }
+});
+document.addEventListener("change", async (ev) => {
+  const id = ev.target.id;
+  if (id === "as-sel") { AS = ev.target.value; try { localStorage.setItem("fa-who", AS); } catch {} sheet = null; selDay = null; tab = "cal"; rFellow = ""; render(); }
+
+  if (id === "r-month") { rMonth = ev.target.value; render(); }
+  if (id === "r-day") { rDay = ev.target.value; render(); }
+  if (id === "r-fellow") { rFellow = ev.target.value; render(); }
+  if (id === "up-month") { upMonth = ev.target.value; render(); }
+  if (id === "up-doc" && ev.target.files[0]) {
+    const file = ev.target.files[0]; upMsg = "Reading " + file.name + "…"; render();
+    try {
+      const text = /\.docx$/i.test(file.name) ? await docxToText(file) : await file.text();
+      const found = parseSchedule(text);
+      if (!found.length) { upMsg = "No events found in " + file.name + ". Is it the usual schedule format?"; render(); return; }
+      upMsg = ""; pasteText = text; pasteSample = ""; pasteDiff = diffSchedule(found); sheet = { type: "paste" }; render();
+    } catch { upMsg = "Couldn't read that file. Try a .docx or paste the text instead."; render(); }
+    return;
+  }
+  if (id === "fb-on") { fbFor = ev.target.value; renderSheet(); }
+  if (id === "pick-logo" && ev.target.files[0] && assetsCap && db) {
+    const file = ev.target.files[0]; logoMsg = "Uploading…"; renderSheet();
+    try { const up = await assetsCap.upload(file); const old = brand.logo; await db.doc("brand/main").set({ logo: up.id, at: new Date().toISOString() }); if (old) assetsCap.delete(old).catch(() => {}); logoMsg = "✓ Logo saved"; }
+    catch (e) { logoMsg = e && e.code === "unsupported_type" ? "Use a PNG, JPEG, WebP or SVG file." : "Logo not saved. Try again."; }
+    renderSheet(); render(); if (/saved/.test(logoMsg)) toast("Logo added"); else if (logoMsg !== "Uploading…") toast(logoMsg); return;
+  }
+  if (id === "pick-folder" || id === "pick-files") {
+    const files = [...ev.target.files].filter((f) => (/^image\//.test(f.type) || /\.(jpe?g|png|heic|webp)$/i.test(f.name)) && !/logo/i.test(f.name)).sort((a, b) => a.name.localeCompare(b.name));
+    if (!files.length) { toast("No photos found there."); return; }
+    folder = files.map((file) => ({ file, url: URL.createObjectURL(file), name: nameFromFile(file.name) })); folderMsg = ""; renderSheet(); return;
+  }
+  const fid = ev.target.dataset && ev.target.dataset.photo;
+  if (fid && ev.target.files[0] && assetsCap) {
+    rmsg[fid] = "Uploading…"; renderSheet();
+    try { const up = await assetsCap.upload(await squareJpeg(ev.target.files[0])); const old = (roster[fid] || {}).photo; await saveRoster(fid, { photo: up.id }); if (old) assetsCap.delete(old).catch(() => {}); rmsg[fid] = "✓ Photo saved"; }
+    catch (e) { rmsg[fid] = e && e.message === "bad image" ? "Use a JPEG or PNG" : "Photo not saved"; }
+    renderSheet();
+  }
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && sheet) { sheet = null; renderSheet(); } });
+document.getElementById("fb-btn").addEventListener("click", () => { fbFor = curKey(); fbMsg = ""; sheet = { type: "feedback" }; renderSheet(); });
+
+/* boot */
+try { const w = localStorage.getItem("fa-who"); if (w === "staff" || /^f\d+$/.test(w || "")) AS = w; } catch {}
+NOW = (window.__NOW || etNow()); month = NOW.slice(0, 7);
+setInterval(() => { NOW = window.__NOW || etNow(); }, 60000);
+seed(); render(); initCaps();
+</script>
