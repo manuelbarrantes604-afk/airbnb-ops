@@ -199,7 +199,7 @@ footer { text-align: center; font-size: 12px; color: var(--muted); padding-botto
   </header>
   <main id="view"></main>
   <footer><div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:6px"><button class="linkbtn" id="fb-btn" type="button">Feedback</button><span id="backup-slot"></span></div>
-    <span id="conn"></span>For the invited class and program staff · Not an official government system · v17</footer>
+    <span id="conn"></span>For the invited class and program staff · Not an official government system · v18</footer>
 </div>
 <div id="layer"></div>
 <div id="toast" aria-live="polite"></div>
@@ -265,7 +265,7 @@ let changing = false, draftNote = "";
 let EVENTS = [], ABS = {}, ATTENDED = {}, NOW, AS = "staff", tab = "cal", month = "2026-11", selDay = null, sheet = null, draftReason = null;
 let SCHED_LOG = [], LOG = [];          // schedule history (saved) + derived absence history
 let absDocs = {}, staffAbs = {}, claims = {}; // absences/{uid}, staffabs/{fid}, claims/{uid}
-let schedLoaded = false, live = false;
+let schedLoaded = false, live = false, signedOut = false;
 const pad = (n) => String(n).padStart(2, "0");
 function etNow() { const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).formatToParts(new Date()).map((x) => [x.type, x.value])); return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`; }
 function hash(str) { let h = 5381; for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0; return h.toString(36); }
@@ -322,7 +322,7 @@ async function putEntry(fid, eid, item) {
   try { await db.doc(path).set(next); return true; }
   catch (e) {
     if (path.startsWith("absences/")) absDocs[myId] = before; else staffAbs[fid] = before;
-    computeAbs(); render(); toast("Not saved. Check your connection and try again."); return false;
+    computeAbs(); render(); toast(noAccess(e) ? "You can view this page but not save. Ask the page owner to give you access to use it." : "Not saved. Check your connection and try again."); return false;
   }
 }
 async function saveSchedule() {
@@ -708,7 +708,7 @@ async function initCaps() {
   try {
     if (!(window.claude && window.claude.use)) { fbState = "off"; paint(); return render(); }
     db = await window.claude.use("db"); userCap = await window.claude.use("user"); assetsCap = await window.claude.use("assets"); dl = await window.claude.use("downloads");
-    if (!db) { fbState = "off"; paint(); return render(); }
+    if (!db) { fbState = "off"; signedOut = true; paint(); return render(); }
     if (userCap) { myId = await userCap.id(); isOwner = await userCap.isOwner(); canEdit = !!(await userCap.canEdit()); }
     const timer = setTimeout(() => { if (fbState === "loading") { fbState = "slow"; paint(); } }, 10000);
     db.collection("feedback").orderBy("at", "desc").onSnapshot((s) => { clearTimeout(timer); fbState = "ready"; notes = s.docs.map((d) => ({ id: d.id, ...d.data() })); paint(); names_(); }, () => { fbState = "off"; paint(); });
@@ -747,6 +747,9 @@ function render() {
   document.getElementById("who-pick").hidden = !editor;
   document.getElementById("who-fixed").hidden = editor || AS === "none";
   if (!editor && AS !== "none") document.getElementById("who-name").textContent = fx(AS).name;
+  if (signedOut) { document.getElementById("tabs").hidden = true; document.getElementById("who-pick").hidden = true; document.getElementById("who-fixed").hidden = true;
+    document.getElementById("view").innerHTML = `<section class="panel" style="padding:20px;margin:18px 0 40px"><h2 style="font-size:28px">Please sign in</h2><p style="margin:8px 0 0;color:var(--muted)">Sign in to <b style="color:var(--ink)">claude.ai</b> with the email you were invited with, then open this link again. You'll pick your name the first time.</p></section>`;
+    document.getElementById("conn").innerHTML = ""; renderSheet(); return; }
   if (live && !editor && AS === "none") { document.getElementById("tabs").hidden = true; document.getElementById("view").innerHTML = vClaim(); renderSheet(); paint(); return; }
   const sel = document.getElementById("as-sel");
   sel.innerHTML = `<option value="staff">Program staff</option><optgroup label="Fellows">${FELLOWS.slice().sort((a, b) => a.name.localeCompare(b.name)).map((f) => `<option value="${f.id}">${esc(f.name)}</option>`).join("")}</optgroup>`;
@@ -769,6 +772,7 @@ function renderSheet() {
   layer.innerHTML = `<div class="scrim" data-act="scrim"><div class="sheet" role="dialog" aria-modal="true">${html}</div></div>`;
   if (draft && document.getElementById("fb-text")) document.getElementById("fb-text").value = draft;
 }
+const noAccess = (e) => !!e && /not_granted|permission|denied|not_found|not_writer|forbidden/i.test(String(e.code || "") + " " + String(e.message || ""));
 const confirm2 = () => true; // the viewer frame blocks confirm(); claims can be undone by staff
 let toastT;
 function toast(msg, undo) {
@@ -846,7 +850,7 @@ document.addEventListener("click", async (ev) => {
     case "claim": {
       const f = fx(d.f); if (!confirm2(`You are ${f.name}?`)) break;
       claims[myId] = { fid: d.f, at: NOW }; render();
-      try { await db.doc("claims/" + myId).set({ fid: d.f, at: NOW }); toast(`Welcome, ${f.name}!`); } catch { delete claims[myId]; render(); toast("Couldn't save. Try again."); }
+      try { await db.doc("claims/" + myId).set({ fid: d.f, at: NOW }); toast(`Welcome, ${f.name}!`); } catch (e) { if (noAccess(e)) { delete claims[myId]; render(); toast("You can view this page but not save. Ask the page owner to give you access to use it."); break; } delete claims[myId]; render(); toast("Couldn't save. Try again."); }
       break; }
     case "unclaim": { const uid = d.u; const prev = claims[uid]; delete claims[uid]; renderSheet(); render(); try { await db.doc("claims/" + uid).delete(); toast("Link removed. They can pick their name again."); } catch { claims[uid] = prev; renderSheet(); toast("Couldn't remove the link."); } break; }
     case "backup": {
