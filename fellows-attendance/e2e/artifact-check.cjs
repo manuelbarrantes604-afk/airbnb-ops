@@ -78,17 +78,15 @@ const results = []; const ok = (n, c, d = '') => { results.push(c); console.log(
   await staff.evaluate(() => { for (const t of ['roster', 'paste', 'feedback']) { sheet = { type: t }; renderSheet(); } sheet = { type: 'edit', id: EVENTS[0].id }; renderSheet(); sheet = { type: 'event', id: EVENTS[3].id }; renderSheet(); sheet = { type: 'daypick', d: '2026-11-19' }; renderSheet(); sheet = null; renderSheet(); });
   for (const t of ['cal', 'report', 'update']) { await staff.locator(`[data-act=tab][data-v=${t}]`).click(); await staff.waitForTimeout(40); }
   ok('Names & photos shows linked accounts', await staff.evaluate(() => { sheet = { type: 'roster' }; renderSheet(); const t = document.querySelector('.sheet').innerText; sheet = null; renderSheet(); return /Linked accounts/.test(t) && /Fellow 03/.test(t); }));
-  // staff approval: an Editor who isn't the owner asks to be staff; the owner approves
+  // staff: an Editor who isn't the owner taps "I'm program staff" and gets the staff view
   const s2 = await page('u_s2', false, true);
   ok('Non-owner Editor starts on the name screen (not staff)', (await s2.getByText('Which Fellow are you?').isVisible()) && !(await s2.locator('#tabs').isVisible()));
   await s2.getByRole('button', { name: "I'm program staff" }).click(); await s2.waitForTimeout(100);
-  ok('Staff request saved', !!(await st())['staffreq/u_s2'] && (await s2.getByText('Staff request sent').isVisible()));
-  await staff.waitForTimeout(150); await staff.locator('[data-act=tab][data-v=cal]').click();
-  ok('Owner sees the waiting request', (await staff.locator('#conn').innerText()).includes('1 staff request'));
-  await staff.locator('[data-act=tab][data-v=report]').click(); await staff.locator('[data-act=roster]').click(); await staff.waitForTimeout(100);
-  await staff.locator('[data-act=staffok][data-u=u_s2]').click(); await staff.waitForTimeout(150); await staff.locator('[data-act=close]').first().click().catch(() => {});
+  ok('Staff tap gives the staff view right away', !!((await st())['staff/main'] || {}).ids?.includes('u_s2'));
+  await s2.reload(); await s2.waitForTimeout(400);
+  ok('Staff view survives reload', await s2.locator('#tabs').isVisible());
   await s2.waitForTimeout(200);
-  ok('Approved staff now gets the staff tabs', await s2.locator('#tabs').isVisible());
+  ok('Staff still has staff tabs', await s2.locator('#tabs').isVisible());
   await fel.reload(); await fel.waitForTimeout(400);
   ok('Fellow invited as Editor still sees only their own view', (await fel.locator('#who-name').innerText()) === 'Fellow 03' && !(await fel.locator('#tabs').isVisible()) && !(await fel.getByRole('button', { name: 'Download backup' }).isVisible()));
   for (const w of [320, 390]) { await staff.setViewportSize({ width: w, height: 700 }); for (const t of ['cal', 'report', 'update']) { await staff.locator(`[data-act=tab][data-v=${t}]`).click(); await staff.waitForTimeout(40); const sw = await staff.evaluate(() => document.documentElement.scrollWidth); if (sw > w) errs.push(`overflow ${w} ${t} ${sw}`); } }

@@ -199,7 +199,7 @@ footer { text-align: center; font-size: 12px; color: var(--muted); padding-botto
   </header>
   <main id="view"></main>
   <footer><div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:6px"><button class="linkbtn" id="fb-btn" type="button">Feedback</button><span id="backup-slot"></span></div>
-    <span id="conn"></span>For the invited class and program staff · Not an official government system · v19</footer>
+    <span id="conn"></span>For the invited class and program staff · Not an official government system · v20</footer>
 </div>
 <div id="layer"></div>
 <div id="toast" aria-live="polite"></div>
@@ -451,7 +451,7 @@ function vClaim() {
     <h2 style="font-size:26px">Welcome! Which Fellow are you?</h2>
     <p class="note" style="margin:4px 0 14px">Pick your name once. After that, this page opens as you and only you can change your absences. Staff can fix a wrong pick.</p>
     <div class="who">${FELLOWS.slice().sort((a, b) => a.name.localeCompare(b.name)).map((f) => `<button class="whorow ghost" style="justify-content:flex-start;padding:8px 12px;width:100%" data-act="claim" data-f="${f.id}" ${taken.has(f.id) ? "disabled" : ""}>${av(f)}<span class="nm" style="text-align:left"><b>${esc(f.name)}</b>${taken.has(f.id) ? "<small>Already linked to someone</small>" : ""}</span></button>`).join("")}</div>
-    <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px">${staffReq[myId] ? `<p class="note" style="margin:0"><b style="color:var(--ink)">Staff request sent.</b> The page owner will approve you, then this page opens with the staff tools.</p>` : `<p class="note" style="margin:0 0 8px">Program staff? Don't pick a name.</p><button class="ghost" data-act="askstaff">I'm program staff</button>`}</div></section>`;
+    <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px"><p class="note" style="margin:0 0 8px">Program staff? Don't pick a name.</p><button class="ghost" data-act="askstaff">I'm program staff</button></div></section>`;
 }
 function sheetEvent(e) {
   const out = outFor(e), past = isPast(e), mine = !isStaff() && absent(AS, e), a = ABS[AS + "|" + e.id];
@@ -690,7 +690,7 @@ function sheetRoster() {
 function vStaffPanel() {
   const reqs = Object.keys(staffReq).filter((u) => !staffIds.includes(u));
   const row = (u, btns) => `<div class="whorow" style="font-size:14px"><span class="nm">${esc(names[u] || "Someone")}</span>${btns}</div>`;
-  return `<div class="panel" style="padding:10px 14px;margin-bottom:14px"><b>Program staff</b><p class="note" style="margin:2px 0 8px">Only you (the owner) see this. Staff get the Report and Edit Schedule tabs.</p>
+  return `<div class="panel" style="padding:10px 14px;margin-bottom:14px"><b>Program staff</b><p class="note" style="margin:2px 0 8px">Only you (the owner) see this. Anyone who taps "I'm program staff" appears here. Remove someone who tapped it by mistake.</p>
     ${reqs.map((u) => row(u, `<span style="display:flex;gap:6px"><button data-act="staffok" data-u="${esc(u)}">Approve</button><button data-act="staffno" data-u="${esc(u)}">Decline</button></span>`)).join("")}
     ${staffIds.map((u) => row(u, `<button data-act="staffrm" data-u="${esc(u)}">Remove</button>`)).join("") || (reqs.length ? "" : `<p class="note">No staff yet. When a staff member opens the page and taps "I'm program staff", they appear here.</p>`)}</div>`;
 }
@@ -771,7 +771,7 @@ function render() {
   tabs.querySelectorAll("button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.v === tab)));
   document.getElementById("view").innerHTML = tab === "report" ? vReport() : tab === "update" ? vUpdate() : vCalendar();
   document.getElementById("backup-slot").innerHTML = live && isEditor() ? `<button class="linkbtn" data-act="backup">Download backup</button>` : "";
-  const pend = isOwner ? Object.keys(staffReq).filter((u) => !staffIds.includes(u)).length : 0;
+  const pend = 0 && isOwner ? Object.keys(staffReq).filter((u) => !staffIds.includes(u)).length : 0;
   document.getElementById("conn").innerHTML = pend ? `<b style="color:var(--out)">${pend} staff request${pend > 1 ? "s" : ""} waiting: open Report → Fellows' names &amp; photos (bottom) to approve.</b> ` : !live && fbState === "off" ? `<b style="color:var(--out)">Not connected: sign in to claude.ai to save and see the group's absences.</b> ` : "";
   renderSheet(); paint();
 }
@@ -812,10 +812,10 @@ document.addEventListener("click", async (ev) => {
   const d = t.dataset, E = d.e ? EVENTS.find((x) => x.id === d.e) : null;
   switch (d.act) {
     case "tab": tab = d.v; sheet = null; render(); break;
-    case "askstaff":
-      staffReq[myId] = { at: NOW }; render();
-      try { await db.doc("staffreq/" + myId).set({ at: NOW }); toast("Request sent to the page owner."); } catch (e) { delete staffReq[myId]; render(); toast(noAccess(e) ? "You can view this page but not save. Ask the page owner to invite you as Editor." : "Couldn't send. Try again."); }
-      break;
+    case "askstaff": {
+      const before = staffIds; staffIds = [...new Set(staffIds.concat(myId))]; AS = "staff"; tab = "cal"; render();
+      try { await db.doc("staff/main").set({ ids: staffIds, at: new Date().toISOString() }); toast("Welcome! You now have the staff view."); } catch (e) { staffIds = before; AS = "none"; render(); toast(noAccess(e) ? "You can view this page but not save. Ask the page owner to invite your email as Editor." : "Couldn't save. Try again."); }
+      break; }
     case "staffok": case "staffrm": {
       const ids = d.act === "staffok" ? [...new Set(staffIds.concat(d.u))] : staffIds.filter((x) => x !== d.u);
       const before = staffIds; staffIds = ids; renderSheet(); render();
