@@ -31,7 +31,7 @@ const results = []; const ok = (n, c, d = '') => { results.push(c); console.log(
   await fel.locator('[data-act=claim][data-f=f3]').click(); await fel.waitForTimeout(150);
   ok('Fellow linked and sees calendar, no tabs', (await fel.locator('#who-name').innerText()) === 'Fellow 03' && !(await fel.locator('#tabs').isVisible()));
   const fel2 = await page('u_f4', false, true);
-  ok('Second Fellow cannot pick a taken name', await fel2.locator('[data-act=claim][data-f=f3]').isDisabled());
+  ok('Taken name is marked but still pickable (second email)', (await fel2.locator('[data-act=claim][data-f=f3]').isEnabled()) && (await fel2.getByText('Tap if this is also you').count()) === 1);
   await fel2.locator('[data-act=claim][data-f=f4]').click(); await fel2.waitForTimeout(100);
   // 3. Fellow records an absence -> saved -> staff sees it
   await fel.locator('.day', { hasText: /^17$/ }).first().click(); await fel.getByRole('radio', { name: 'Travel' }).click(); await fel.locator('#ab-note').fill('Back at 2'); await fel.getByRole('button', { name: 'Save absence' }).click(); await fel.waitForTimeout(150);
@@ -89,6 +89,15 @@ const results = []; const ok = (n, c, d = '') => { results.push(c); console.log(
   ok('Staff still has staff tabs', await s2.locator('#tabs').isVisible());
   await fel.reload(); await fel.waitForTimeout(400);
   ok('Fellow invited as Editor still sees only their own view', (await fel.locator('#who-name').innerText()) === 'Fellow 03' && !(await fel.locator('#tabs').isVisible()) && !(await fel.getByRole('button', { name: 'Download backup' }).isVisible()));
+  // same Fellow on a second email: links the same name and sees the same absence
+  const alt = await page('u_f3_alt', false, true);
+  await alt.locator('[data-act=claim][data-f=f3]').click(); await alt.waitForTimeout(150);
+  await alt.locator('.day', { hasText: /^24$/ }).first().click().catch(() => {});
+  await alt.waitForTimeout(100);
+  ok('Second email for the same Fellow links to the same name', (await alt.locator('#who-name').innerText()) === 'Fellow 03');
+  await alt.evaluate(() => putEntry('f3', EVENTS.find((e) => e.date === '2026-11-19').id, { kind: 'absent', reason: 'Travel', note: 'from alt' }));
+  await fel.waitForTimeout(200);
+  ok('Absence saved from the second email shows for the first', await fel.evaluate(() => !!ABS['f3|' + EVENTS.find((e) => e.date === '2026-11-19').id]));
   for (const w of [320, 390]) { await staff.setViewportSize({ width: w, height: 700 }); for (const t of ['cal', 'report', 'update']) { await staff.locator(`[data-act=tab][data-v=${t}]`).click(); await staff.waitForTimeout(40); const sw = await staff.evaluate(() => document.documentElement.scrollWidth); if (sw > w) errs.push(`overflow ${w} ${t} ${sw}`); } }
   ok('No page errors / sideways scrolling', errs.length === 0, errs.join(' | '));
   await b.close();
