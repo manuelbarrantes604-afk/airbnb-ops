@@ -3,7 +3,7 @@
 // the owner/staff (editor), a Fellow, and a second Fellow.
 const { chromium, devices } = require('playwright');
 const FILE = 'file://' + (process.argv[2] || '/tmp/claude-0/simple-test.html');
-const mock = (uid, editor) => `(() => {
+const mock = (uid, editor, edit = editor) => `(() => {
   window.__NOW = '2026-11-09T09:00';
   const load = () => JSON.parse(localStorage.getItem('mockdb') || '{}'); const save = (s) => localStorage.setItem('mockdb', JSON.stringify(s));
   const subs = [];
@@ -12,25 +12,25 @@ const mock = (uid, editor) => `(() => {
   window.addEventListener('storage', notify);
   const docRef = (p) => ({ set: async (d) => { const st = load(); st[p] = JSON.parse(JSON.stringify(d)); save(st); notify(); }, update: async (d) => { const st = load(); st[p] = { ...st[p], ...d }; save(st); notify(); }, delete: async () => { const st = load(); delete st[p]; save(st); notify(); } });
   const col = (c) => ({ orderBy() { return this; }, onSnapshot(fn) { subs.push([c, fn]); setTimeout(() => fn(snap(c)), 5); return () => {}; }, add: async (d) => { const st = load(); st[c + '/n' + Date.now()] = d; save(st); notify(); }, doc: (id) => docRef(c + '/' + id) });
-  const user = { id: async () => '${uid}', isOwner: async () => ${editor}, canEdit: async () => ${editor}, profiles: async (ids) => Object.fromEntries(ids.map((i) => [i, { name: 'Person ' + i }])) };
-  window.claude = { use: async (k) => ({ db: { collection: col, doc: docRef }, user, assets: ${editor} ? { upload: async () => ({ id: 'a'.repeat(32) }), delete: async () => {} } : null, downloads: { save: async (o) => { window.__dl = { name: o.filename, text: await o.data.text() }; } } }[k] ?? null) };
+  const user = { id: async () => '${uid}', isOwner: async () => ${editor}, canEdit: async () => ${edit}, profiles: async (ids) => Object.fromEntries(ids.map((i) => [i, { name: 'Person ' + i }])) };
+  window.claude = { use: async (k) => ({ db: { collection: col, doc: docRef }, user, assets: ${edit} ? { upload: async () => ({ id: 'a'.repeat(32) }), delete: async () => {} } : null, downloads: { save: async (o) => { window.__dl = { name: o.filename, text: await o.data.text() }; } } }[k] ?? null) };
 })();`;
 const results = []; const ok = (n, c, d = '') => { results.push(c); console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${d ? ' — ' + d : ''}`); };
 (async () => {
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ ...devices['iPhone 13'] }); // one browser profile = shared localStorage = shared "database"
-  const page = async (uid, editor) => { const p = await ctx.newPage(); await p.addInitScript(mock(uid, editor)); p.on('pageerror', (e) => errs.push(uid + ': ' + e)); await p.goto(FILE); await p.waitForTimeout(400); return p; };
+  const page = async (uid, editor, edit = editor) => { const p = await ctx.newPage(); await p.addInitScript(mock(uid, editor, edit)); p.on('pageerror', (e) => errs.push(uid + ': ' + e)); await p.goto(FILE); await p.waitForTimeout(400); return p; };
   // 1. staff first visit stores the schedule
   const staff = await page('u_staff', true);
   const st = () => staff.evaluate(() => JSON.parse(localStorage.getItem('mockdb') || '{}'));
   ok('Staff first visit saves the starting schedule', ((await st())['schedule/main'] || {}).events?.length === 25);
   ok('Staff sees tabs + backup button', (await staff.locator('#tabs').isVisible()) && (await staff.getByRole('button', { name: 'Download backup' }).isVisible()));
   // 2. a Fellow links their name
-  const fel = await page('u_f3', false);
+  const fel = await page('u_f3', false, true);
   ok('New Fellow sees "Which Fellow are you?"', await fel.getByText('Which Fellow are you?').isVisible());
   await fel.locator('[data-act=claim][data-f=f3]').click(); await fel.waitForTimeout(150);
   ok('Fellow linked and sees calendar, no tabs', (await fel.locator('#who-name').innerText()) === 'Fellow 03' && !(await fel.locator('#tabs').isVisible()));
-  const fel2 = await page('u_f4', false);
+  const fel2 = await page('u_f4', false, true);
   ok('Second Fellow cannot pick a taken name', await fel2.locator('[data-act=claim][data-f=f3]').isDisabled());
   await fel2.locator('[data-act=claim][data-f=f4]').click(); await fel2.waitForTimeout(100);
   // 3. Fellow records an absence -> saved -> staff sees it
@@ -78,6 +78,19 @@ const results = []; const ok = (n, c, d = '') => { results.push(c); console.log(
   await staff.evaluate(() => { for (const t of ['roster', 'paste', 'feedback']) { sheet = { type: t }; renderSheet(); } sheet = { type: 'edit', id: EVENTS[0].id }; renderSheet(); sheet = { type: 'event', id: EVENTS[3].id }; renderSheet(); sheet = { type: 'daypick', d: '2026-11-19' }; renderSheet(); sheet = null; renderSheet(); });
   for (const t of ['cal', 'report', 'update']) { await staff.locator(`[data-act=tab][data-v=${t}]`).click(); await staff.waitForTimeout(40); }
   ok('Names & photos shows linked accounts', await staff.evaluate(() => { sheet = { type: 'roster' }; renderSheet(); const t = document.querySelector('.sheet').innerText; sheet = null; renderSheet(); return /Linked accounts/.test(t) && /Fellow 03/.test(t); }));
+  // staff approval: an Editor who isn't the owner asks to be staff; the owner approves
+  const s2 = await page('u_s2', false, true);
+  ok('Non-owner Editor starts on the name screen (not staff)', (await s2.getByText('Which Fellow are you?').isVisible()) && !(await s2.locator('#tabs').isVisible()));
+  await s2.getByRole('button', { name: "I'm program staff" }).click(); await s2.waitForTimeout(100);
+  ok('Staff request saved', !!(await st())['staffreq/u_s2'] && (await s2.getByText('Staff request sent').isVisible()));
+  await staff.waitForTimeout(150); await staff.locator('[data-act=tab][data-v=cal]').click();
+  ok('Owner sees the waiting request', (await staff.locator('#conn').innerText()).includes('1 staff request'));
+  await staff.locator('[data-act=tab][data-v=report]').click(); await staff.locator('[data-act=roster]').click(); await staff.waitForTimeout(100);
+  await staff.locator('[data-act=staffok][data-u=u_s2]').click(); await staff.waitForTimeout(150); await staff.locator('[data-act=close]').first().click().catch(() => {});
+  await s2.waitForTimeout(200);
+  ok('Approved staff now gets the staff tabs', await s2.locator('#tabs').isVisible());
+  await fel.reload(); await fel.waitForTimeout(400);
+  ok('Fellow invited as Editor still sees only their own view', (await fel.locator('#who-name').innerText()) === 'Fellow 03' && !(await fel.locator('#tabs').isVisible()) && !(await fel.getByRole('button', { name: 'Download backup' }).isVisible()));
   for (const w of [320, 390]) { await staff.setViewportSize({ width: w, height: 700 }); for (const t of ['cal', 'report', 'update']) { await staff.locator(`[data-act=tab][data-v=${t}]`).click(); await staff.waitForTimeout(40); const sw = await staff.evaluate(() => document.documentElement.scrollWidth); if (sw > w) errs.push(`overflow ${w} ${t} ${sw}`); } }
   ok('No page errors / sideways scrolling', errs.length === 0, errs.join(' | '));
   await b.close();

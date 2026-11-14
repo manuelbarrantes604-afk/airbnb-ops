@@ -199,7 +199,7 @@ footer { text-align: center; font-size: 12px; color: var(--muted); padding-botto
   </header>
   <main id="view"></main>
   <footer><div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:6px"><button class="linkbtn" id="fb-btn" type="button">Feedback</button><span id="backup-slot"></span></div>
-    <span id="conn"></span>For the invited class and program staff · Not an official government system · v18</footer>
+    <span id="conn"></span>For the invited class and program staff · Not an official government system · v19</footer>
 </div>
 <div id="layer"></div>
 <div id="toast" aria-live="polite"></div>
@@ -278,7 +278,7 @@ function seed() {
     { at: "2026-08-31T14:30", text: "Program staff added the September schedule (5 events)" },
   ];
 }
-const isEditor = () => !live || canEdit;           // without a database (local preview) everything is editable
+const isEditor = () => !live || isOwner || staffIds.includes(myId); // staff = the owner + people the owner approved; local preview: everything editable
 const myKey = () => (live ? myId : "local");
 const myClaim = () => (claims[myKey()] || {}).fid || null;
 function ago(at) { const h = Math.round((nowMs() - Date.parse(at + ":00Z")) / 3600000); if (h < 1) return "just now"; if (h < 24) return h + "h ago"; const d = Math.round(h / 24); return d === 1 ? "yesterday" : d + " days ago"; }
@@ -322,12 +322,12 @@ async function putEntry(fid, eid, item) {
   try { await db.doc(path).set(next); return true; }
   catch (e) {
     if (path.startsWith("absences/")) absDocs[myId] = before; else staffAbs[fid] = before;
-    computeAbs(); render(); toast(noAccess(e) ? "You can view this page but not save. Ask the page owner to give you access to use it." : "Not saved. Check your connection and try again."); return false;
+    computeAbs(); render(); toast(noAccess(e) ? "You can view this page but not save. Ask the page owner to invite your email as Editor." : "Not saved. Check your connection and try again."); return false;
   }
 }
 async function saveSchedule() {
   computeAbs();
-  if (!db || !live || !canEdit) return true;
+  if (!db || !live || !isEditor()) return true;
   try { await db.doc("schedule/main").set({ events: EVENTS, log: SCHED_LOG, at: new Date().toISOString() }); return true; }
   catch { toast("Schedule not saved. Check your connection and try again."); return false; }
 }
@@ -451,7 +451,7 @@ function vClaim() {
     <h2 style="font-size:26px">Welcome! Which Fellow are you?</h2>
     <p class="note" style="margin:4px 0 14px">Pick your name once. After that, this page opens as you and only you can change your absences. Staff can fix a wrong pick.</p>
     <div class="who">${FELLOWS.slice().sort((a, b) => a.name.localeCompare(b.name)).map((f) => `<button class="whorow ghost" style="justify-content:flex-start;padding:8px 12px;width:100%" data-act="claim" data-f="${f.id}" ${taken.has(f.id) ? "disabled" : ""}>${av(f)}<span class="nm" style="text-align:left"><b>${esc(f.name)}</b>${taken.has(f.id) ? "<small>Already linked to someone</small>" : ""}</span></button>`).join("")}</div>
-    <p class="note">Program staff: ask the page owner for Editor access instead of picking a name.</p></section>`;
+    <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px">${staffReq[myId] ? `<p class="note" style="margin:0"><b style="color:var(--ink)">Staff request sent.</b> The page owner will approve you, then this page opens with the staff tools.</p>` : `<p class="note" style="margin:0 0 8px">Program staff? Don't pick a name.</p><button class="ghost" data-act="askstaff">I'm program staff</button>`}</div></section>`;
 }
 function sheetEvent(e) {
   const out = outFor(e), past = isPast(e), mine = !isStaff() && absent(AS, e), a = ABS[AS + "|" + e.id];
@@ -664,8 +664,8 @@ function nameFromFile(fn) {
   return n.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 function sheetRoster() {
-  const ro = !(db && canEdit);
-  const intro = !db ? "Open this page signed in to claude.ai to save names and photos." : !canEdit ? "Only the owner and editors can change these." : "Add each Fellow's name and photo, with their permission. Saved for everyone who opens this preview.";
+  const ro = !(db && isEditor());
+  const intro = !db ? "Open this page signed in to claude.ai to save names and photos." : !isEditor() ? "Only program staff can change these." : "Add each Fellow's name and photo, with their permission. Saved for everyone who opens this preview.";
   if (folder) {
     return `<div class="grab"></div><div class="top"><h2>From your folder</h2><button class="x" data-act="close" aria-label="Close">×</button></div>
       <p class="note" style="margin:6px 0 12px">Found ${folder.length} photo${folder.length === 1 ? "" : "s"}. Names come from the file names. Check them, fix any spelling, then save.</p>
@@ -681,15 +681,24 @@ function sheetRoster() {
     ${ro ? "" : `<div class="panel" style="padding:12px 14px;margin-bottom:14px"><b>Use your Fellows folder</b><p class="note" style="margin:2px 0 10px">Choose the folder on your computer that has one photo per Fellow, named like <i>Jane Smith.jpg</i>. Photos go straight from your computer to this page.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap"><label class="ghost" style="position:relative;display:inline-grid;place-items:center;width:auto;padding:0 16px">Choose folder<input type="file" id="pick-folder" webkitdirectory directory multiple style="position:absolute;inset:0;opacity:0"></label>
       <label class="ghost" style="position:relative;display:inline-grid;place-items:center;width:auto;padding:0 16px">Choose photos<input type="file" id="pick-files" accept="image/*" multiple style="position:absolute;inset:0;opacity:0"></label></div></div>`}
-    ${live && canEdit ? `<div class="panel" style="padding:10px 14px;margin-bottom:14px"><b>Linked accounts</b><p class="note" style="margin:2px 0 8px">Who picked which name. Remove a wrong link and that person can pick again.</p>
+    ${live && isOwner ? vStaffPanel() : ""}
+    ${live && isEditor() ? `<div class="panel" style="padding:10px 14px;margin-bottom:14px"><b>Linked accounts</b><p class="note" style="margin:2px 0 8px">Who picked which name. Remove a wrong link and that person can pick again.</p>
       ${Object.entries(claims).map(([u, c]) => `<div class="whorow" style="font-size:14px"><span class="nm">${esc((fx(c.fid) || {}).name || "?")} <small>${esc(names[u] || "Someone")}</small></span><button data-act="unclaim" data-u="${esc(u)}">Remove link</button></div>`).join("") || `<p class="note">No one has linked yet.</p>`}</div>` : ""}
     <div class="who">${FELLOWS.map((f) => `<div class="whorow">${av(f, "lg")}<span class="nm"><input class="f" id="nm-${f.id}" value="${esc((roster[f.id] || {}).name || "")}" placeholder="${f.base}" maxlength="80" aria-label="Name for ${f.base}" ${ro ? "disabled" : ""}><small id="msg-${f.id}">${esc(rmsg[f.id] || "")}</small></span>
       ${ro ? "" : `<span style="display:grid;gap:4px">${assetsCap ? `<label class="whorow" style="position:relative"><button type="button" style="pointer-events:none">${f.photo ? "New photo" : "Photo"}</button><input type="file" accept="image/*" data-photo="${f.id}" aria-label="Photo for ${f.base}" style="position:absolute;inset:0;opacity:0"></label>` : ""}<button data-act="savename" data-f="${f.id}">Save</button></span>`}</div>`).join("")}</div>`;
+}
+function vStaffPanel() {
+  const reqs = Object.keys(staffReq).filter((u) => !staffIds.includes(u));
+  const row = (u, btns) => `<div class="whorow" style="font-size:14px"><span class="nm">${esc(names[u] || "Someone")}</span>${btns}</div>`;
+  return `<div class="panel" style="padding:10px 14px;margin-bottom:14px"><b>Program staff</b><p class="note" style="margin:2px 0 8px">Only you (the owner) see this. Staff get the Report and Edit Schedule tabs.</p>
+    ${reqs.map((u) => row(u, `<span style="display:flex;gap:6px"><button data-act="staffok" data-u="${esc(u)}">Approve</button><button data-act="staffno" data-u="${esc(u)}">Decline</button></span>`)).join("")}
+    ${staffIds.map((u) => row(u, `<button data-act="staffrm" data-u="${esc(u)}">Remove</button>`)).join("") || (reqs.length ? "" : `<p class="note">No staff yet. When a staff member opens the page and taps "I'm program staff", they appear here.</p>`)}</div>`;
 }
 let folderMsg = "", folderBusy = false, logoMsg = "";
 let rmsg = {};
 
 /* ---------- feedback (saved, so Claude can read it) */
+let staffIds = [], staffReq = {};
 let db = null, userCap = null, assetsCap = null, dl = null, myId = null, isOwner = false, canEdit = false, notes = [], fbState = "loading", names = {};
 const SCREENS = { cal: "Calendar", report: "Report", update: "Edit Schedule", event: "Event card", paste: "Schedule changes", edit: "Edit an event", roster: "Names & photos" };
 const curKey = () => sheet ? (sheet.type === "event" ? "event" : sheet.type) : tab;
@@ -712,14 +721,17 @@ async function initCaps() {
     if (userCap) { myId = await userCap.id(); isOwner = await userCap.isOwner(); canEdit = !!(await userCap.canEdit()); }
     const timer = setTimeout(() => { if (fbState === "loading") { fbState = "slow"; paint(); } }, 10000);
     db.collection("feedback").orderBy("at", "desc").onSnapshot((s) => { clearTimeout(timer); fbState = "ready"; notes = s.docs.map((d) => ({ id: d.id, ...d.data() })); paint(); names_(); }, () => { fbState = "off"; paint(); });
-    live = true; AS = canEdit ? "staff" : "none";
+    live = true; AS = "none";
+    db.collection("staff").onSnapshot((s) => { const d = s.docs.find((x) => x.id === "main"); staffIds = (d && d.data().ids) || []; if (isEditor() && AS === "none") AS = "staff"; names_(); render(); }, () => {});
+    db.collection("staffreq").onSnapshot((s) => { staffReq = {}; s.docs.forEach((d) => (staffReq[d.id] = d.data())); names_(); render(); }, () => {});
+    if (isOwner) AS = "staff";
     db.collection("claims").onSnapshot((s) => { claims = {}; s.docs.forEach((d) => (claims[d.id] = d.data())); names_(); render(); }, () => {});
     db.collection("absences").onSnapshot((s) => { absDocs = {}; s.docs.forEach((d) => (absDocs[d.id] = d.data())); render(); }, () => {});
     db.collection("staffabs").onSnapshot((s) => { staffAbs = {}; s.docs.forEach((d) => (staffAbs[d.id] = d.data())); render(); }, () => {});
     db.collection("schedule").onSnapshot((s) => {
       const d = s.docs.find((x) => x.id === "main");
       if (d && d.data().events) { EVENTS = d.data().events; SCHED_LOG = d.data().log || []; }
-      else if (canEdit && !schedLoaded) saveSchedule(); // first staff visit stores the starting schedule
+      else if (isEditor() && !schedLoaded) saveSchedule(); // first staff visit stores the starting schedule
       schedLoaded = true; render();
     }, () => {});
     db.collection("brand").onSnapshot((s) => { const d = s.docs.find((x) => x.id === "main"); brand = d ? d.data() : {}; render(); }, () => {});
@@ -728,7 +740,7 @@ async function initCaps() {
   } catch { fbState = "off"; paint(); render(); }
 }
 async function names_() {
-  if (!userCap) return; const ids = [...new Set(notes.map((n) => n.by).concat(Object.keys(claims)).filter(Boolean))]; if (!ids.length) return;
+  if (!userCap) return; const ids = [...new Set(notes.map((n) => n.by).concat(Object.keys(claims), staffIds, Object.keys(staffReq)).filter(Boolean))]; if (!ids.length) return;
   try { const ps = await userCap.profiles(ids); ids.forEach((i) => (names[i] = (ps[i] && ps[i].name) || (i === myId ? "You" : "Someone"))); } catch {} paint();
 }
 function paint() { if (sheet && sheet.type === "roster") return renderSheet(); document.getElementById("fb-btn").textContent = `Feedback${notes.filter((n) => !n.resolved).length ? " (" + notes.filter((n) => !n.resolved).length + ")" : ""}`; if (sheet && (sheet.type === "feedback" || sheet.type === "roster")) renderSheet(); }
@@ -739,7 +751,7 @@ function render() {
   applyRoster();
   const ls = document.getElementById("logo-slot");
   const want = brand.logo ? `<img src="/_blob/${esc(brand.logo)}" alt="Program logo">`
-    : isStaff() && db && canEdit && assetsCap ? `<label class="addlogo">${logoMsg && /Upload/.test(logoMsg) ? "…" : "+ Add logo"}<input type="file" id="pick-logo" accept="image/png,image/jpeg,image/webp,image/svg+xml" aria-label="Add program logo"></label>` : "";
+    : isStaff() && db && isEditor() && assetsCap ? `<label class="addlogo">${logoMsg && /Upload/.test(logoMsg) ? "…" : "+ Add logo"}<input type="file" id="pick-logo" accept="image/png,image/jpeg,image/webp,image/svg+xml" aria-label="Add program logo"></label>` : "";
   if (ls.innerHTML !== want) ls.innerHTML = want;
   computeAbs();
   const editor = isEditor();
@@ -758,8 +770,9 @@ function render() {
   if (!isStaff()) tab = "cal";
   tabs.querySelectorAll("button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.v === tab)));
   document.getElementById("view").innerHTML = tab === "report" ? vReport() : tab === "update" ? vUpdate() : vCalendar();
-  document.getElementById("backup-slot").innerHTML = live && canEdit ? `<button class="linkbtn" data-act="backup">Download backup</button>` : "";
-  document.getElementById("conn").innerHTML = !live && fbState === "off" ? `<b style="color:var(--out)">Not connected: sign in to claude.ai to save and see the group's absences.</b> ` : "";
+  document.getElementById("backup-slot").innerHTML = live && isEditor() ? `<button class="linkbtn" data-act="backup">Download backup</button>` : "";
+  const pend = isOwner ? Object.keys(staffReq).filter((u) => !staffIds.includes(u)).length : 0;
+  document.getElementById("conn").innerHTML = pend ? `<b style="color:var(--out)">${pend} staff request${pend > 1 ? "s" : ""} waiting: open Report → Fellows' names &amp; photos (bottom) to approve.</b> ` : !live && fbState === "off" ? `<b style="color:var(--out)">Not connected: sign in to claude.ai to save and see the group's absences.</b> ` : "";
   renderSheet(); paint();
 }
 function renderSheet() {
@@ -799,6 +812,18 @@ document.addEventListener("click", async (ev) => {
   const d = t.dataset, E = d.e ? EVENTS.find((x) => x.id === d.e) : null;
   switch (d.act) {
     case "tab": tab = d.v; sheet = null; render(); break;
+    case "askstaff":
+      staffReq[myId] = { at: NOW }; render();
+      try { await db.doc("staffreq/" + myId).set({ at: NOW }); toast("Request sent to the page owner."); } catch (e) { delete staffReq[myId]; render(); toast(noAccess(e) ? "You can view this page but not save. Ask the page owner to invite you as Editor." : "Couldn't send. Try again."); }
+      break;
+    case "staffok": case "staffrm": {
+      const ids = d.act === "staffok" ? [...new Set(staffIds.concat(d.u))] : staffIds.filter((x) => x !== d.u);
+      const before = staffIds; staffIds = ids; renderSheet(); render();
+      try { await db.doc("staff/main").set({ ids, at: new Date().toISOString() }); if (d.act === "staffrm") await db.doc("staffreq/" + d.u).delete(); toast(d.act === "staffok" ? "Approved as staff." : "Removed from staff."); } catch { staffIds = before; renderSheet(); render(); toast("Couldn't save. Try again."); }
+      break; }
+    case "staffno":
+      try { await db.doc("staffreq/" + d.u).delete(); delete staffReq[d.u]; renderSheet(); render(); } catch { toast("Couldn't save. Try again."); }
+      break;
     case "role": AS = d.v === "staff" ? "staff" : lastFellow; tab = "cal"; sheet = null; selDay = null; rFellow = ""; render(); window.scrollTo(0, 0); break;
     case "month": { const [y, m] = month.split("-").map(Number); const n = new Date(Date.UTC(y, m - 1 + Number(d.v), 1)); month = `${n.getUTCFullYear()}-${pad2(n.getUTCMonth() + 1)}`; selDay = null; render(); break; }
     case "day": {
@@ -850,7 +875,7 @@ document.addEventListener("click", async (ev) => {
     case "claim": {
       const f = fx(d.f); if (!confirm2(`You are ${f.name}?`)) break;
       claims[myId] = { fid: d.f, at: NOW }; render();
-      try { await db.doc("claims/" + myId).set({ fid: d.f, at: NOW }); toast(`Welcome, ${f.name}!`); } catch (e) { if (noAccess(e)) { delete claims[myId]; render(); toast("You can view this page but not save. Ask the page owner to give you access to use it."); break; } delete claims[myId]; render(); toast("Couldn't save. Try again."); }
+      try { await db.doc("claims/" + myId).set({ fid: d.f, at: NOW }); toast(`Welcome, ${f.name}!`); } catch (e) { if (noAccess(e)) { delete claims[myId]; render(); toast("You can view this page but not save. Ask the page owner to invite your email as Editor."); break; } delete claims[myId]; render(); toast("Couldn't save. Try again."); }
       break; }
     case "unclaim": { const uid = d.u; const prev = claims[uid]; delete claims[uid]; renderSheet(); render(); try { await db.doc("claims/" + uid).delete(); toast("Link removed. They can pick their name again."); } catch { claims[uid] = prev; renderSheet(); toast("Couldn't remove the link."); } break; }
     case "backup": {
